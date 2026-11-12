@@ -52,10 +52,10 @@ add(np.stack([0.085 * np.cos(a), hh, 0.085 * np.sin(a)], -1), np.stack([np.cos(a
 # ---------------------------------------------------------------- tinsel garland: drooping gold spiral in swags (glows)
 n = 2600; u = np.linspace(0, 1, n); turns = 3.6
 hg = 0.03 + 0.90 * u; ag = TAU * turns * u + 0.9
-swag = 0.06 * np.abs(np.sin(ag * 2.5)); rg = radius(hg) * 1.12
+swag = 0.06 * np.abs(np.sin(ag * 2.5)) + 0.02 * np.sign(np.sin(ag * 45)); rg = radius(hg) * 1.12   # swags + zigzag spikes
 p = np.stack([rg * np.cos(ag), YB + (YT - YB) * hg - swag, rg * np.sin(ag)], -1) + rng.normal(0, 0.008, (n, 3))
 g0 = sum(len(x) for x in P)
-add(p, 0, [1.0, 0.82, 0.22], 1.0, 3 + 3.5 * u, rng.choice(list("~=o*"), n, p=[.30, .35, .15, .20]))
+add(p, 0, [1.0, 0.82, 0.22], 1.0, 3 + 3.5 * u, rng.choice(list("*^v+x"), n, p=[.25, .27, .27, .10, .11]))
 g1 = sum(len(x) for x in P)
 
 # ---------------------------------------------------------------- ornaments: small shaded balls on branch tips
