@@ -23,22 +23,23 @@ def add(p, n, c, ao, born, ch, kind=STATIC):
 
 # ---------------------------------------------------------------- needles: whorls of branches, tips poking past the cone
 tips = []
-for y in np.linspace(YB, YT - 0.05, 26):
+for y in np.linspace(YB, YT - 0.05, 24):
     h = (y - YB) / (YT - YB); R = radius(h)
     k = max(6, int(R * 44)); a0 = rng.random() * TAU
     for a in np.linspace(0, TAU, k, endpoint=False) + a0:
-        L = R * (0.72 + 0.55 * rng.random())                    # uneven lengths -> jagged silhouette
-        n = max(8, int(L * 200))
-        s = rng.random(n) ** 0.85
+        L = R * (0.78 + 0.45 * rng.random())                    # uneven lengths -> jagged silhouette
+        n = max(8, int(L * 230))
+        s = 1 - rng.random(n) ** 1.4                             # dense at the tip
         d = np.array([math.cos(a), 0, math.sin(a)]); side = np.array([-d[2], 0, d[0]])
         p = (d * (L * s)[:, None] + np.array([0, y, 0])
              - np.array([0, 1, 0]) * (0.11 * L * s * s)[:, None]           # droop
              + side * rng.normal(0, 0.012, n)[:, None] + rng.normal(0, 0.006, (n, 3)))
         nrm = d * 0.7 + np.array([0, 0.7, 0]) + rng.normal(0, 0.10, (n, 3))
         snow = (s > 0.5) & (rng.random(n) < 0.05 * s)
-        gl = rng.choice(list(".:-=%*o"), (~snow).sum(), p=[.36, .16, .12, .08, .14, .10, .04])
-        add(p[~snow], nrm[~snow], [0, 0, 0], 0.75 + 0.25 * s[~snow], 0, gl, NEEDLE)
-        add(p[snow], [0, 1, 0], [0.92, 0.95, 1.0], 1.0, 0, np.full(snow.sum(), "*"))
+        gl = rng.choice(list("*%+=-:.~"), (~snow).sum(), p=[.30, .12, .12, .11, .11, .10, .10, .04])
+        t0 = 1.3 + 5.0 * (y - YB) / (YT - YB) + 0.45 * s          # grows from the bottom up
+        add(p[~snow], nrm[~snow], [0, 0, 0], 0.75 + 0.25 * s[~snow], t0[~snow], gl, NEEDLE)
+        add(p[snow], [0, 1, 0], [0.92, 0.95, 1.0], 1.0, t0[snow], np.full(snow.sum(), "*"))
         tips.append(d * L * 0.95 + np.array([0, y - 0.1 * L, 0]))
 tips = np.array(tips); rng.shuffle(tips)
 
@@ -54,14 +55,14 @@ hg = 0.03 + 0.90 * u; ag = TAU * turns * u + 0.9
 swag = 0.06 * np.abs(np.sin(ag * 2.5)); rg = radius(hg) * 1.03
 p = np.stack([rg * np.cos(ag), YB + (YT - YB) * hg - swag, rg * np.sin(ag)], -1) + rng.normal(0, 0.008, (n, 3))
 g0 = sum(len(x) for x in P)
-add(p, 0, [1.0, 0.80, 0.30], 0.75 + 0.25 * rng.random(n), 3 + 3.5 * u, rng.choice(list("~=-o"), n, p=[.35, .3, .25, .1]))
+add(p, 0, [0.95, 0.72, 0.28], 0.65 + 0.3 * rng.random(n), 3 + 3.5 * u, rng.choice(list("~=-o"), n, p=[.35, .3, .25, .1]))
 g1 = sum(len(x) for x in P)
 
 # ---------------------------------------------------------------- ornaments: small shaded balls on branch tips
 PALETTE = [[1.0, 0.10, 0.08], [1.0, 0.10, 0.08], [1.0, 0.10, 0.08], [1.0, 0.75, 0.15], [1.0, 0.70, 0.80], [0.90, 0.95, 1.0]]
 for i, tp in enumerate(tips[:44]):
-    v = rng.normal(size=(14, 3)); v /= np.linalg.norm(v, axis=1, keepdims=True); v[:, 1] *= 0.6
-    add(tp * [1.08, 1, 1.08] + [0, -0.045, 0] + v * 0.04, v, PALETTE[i % len(PALETTE)], 1.0, 6 + 0.1 * i, "@" * 14, ORNAMENT)
+    v = rng.normal(size=(12, 3)); v /= np.linalg.norm(v, axis=1, keepdims=True)
+    add(tp * [1.08, 1, 1.08] + [0, -0.04, 0] + v * [0.05, 0.028, 0.05], v, PALETTE[i % len(PALETTE)], 1.0, 6 + 0.1 * i, "@" * 12, ORNAMENT)
 
 # ---------------------------------------------------------------- lights: small warm dots that switch on one by one
 NL = 170
@@ -102,14 +103,16 @@ box(1.25, 1.20, .22, .24, .22, GREEN, WHITE, -0.3, 10.8)
 gx, gz = np.meshgrid(np.arange(-2.8, 2.8, 0.024), np.arange(-2.8, 2.8, 0.085))
 gx, gz = gx.ravel(), gz.ravel(); r = np.hypot(gx, gz)
 keep = (r > 0.11) & (rng.random(len(gx)) < 0.85); gx, gz, r = gx[keep], gz[keep], r[keep]
-add(np.stack([gx, np.full(len(gx), Y0 - 0.02), gz], -1), 0, [0.70, 0.74, 0.82], 0.6 + 0.4 * rng.random(len(gx)), 0,
-    rng.choice(list(":.-'"), len(gx), p=[.4, .4, .12, .08]), GROUND)
+gch = np.where(r < 0.9, rng.choice(list("+=+="), len(gx)), np.where(r < 1.6, rng.choice(list("=-:+"), len(gx)), rng.choice(list(".:-."), len(gx))))
+add(np.stack([gx, np.full(len(gx), Y0 - 0.02), gz], -1), 0, [0.70, 0.74, 0.84], np.clip(1.15 - 0.4 * r, 0.3, 1.0) * (0.75 + 0.25 * rng.random(len(gx))), 0,
+    gch, GROUND)
 
 P = np.concatenate(P); N = np.concatenate(N); C = np.concatenate(C); AO = np.concatenate(AO)
 BORN = np.concatenate(BORN); CH = np.concatenate(CH); KIND = np.concatenate(KIND)
 LIGHT = np.array([-0.55, 0.45, -0.70]); LIGHT /= np.linalg.norm(LIGHT)
-NEEDLE_DARK, NEEDLE_MID, NEEDLE_LIGHT = np.array([0.04, 0.22, 0.08]), np.array([0.20, 0.62, 0.28]), np.array([0.70, 0.98, 0.70])
-SPARK = (KIND == NEEDLE) & np.isin(CH, list("%*o"))      # the bright sparkles
+NEEDLE_DARK, NEEDLE_LIGHT = np.array([0.07, 0.32, 0.12]), np.array([0.40, 0.86, 0.42])
+GLYPH_LEVEL = {"%": 1.0, "*": 0.8, "+": 0.68, "=": 0.52, "~": 0.5, "-": 0.42, ":": 0.36, ".": 0.30}   # glyph decides brightness
+LEVEL = np.array([GLYPH_LEVEL.get(c, 0.5) for c in CH])
 
 def lambert(nx, ny, nz):
     return np.clip(nx * LIGHT[0] + ny * LIGHT[1] + nz * LIGHT[2], 0, 1)
@@ -146,19 +149,19 @@ def frame(t, ang, W, H):
     lit = np.any(n != 0, axis=1)
     bright = np.where(lit, 0.35 + 0.95 * ndl, 1.0) * ao * np.clip(0.95 - 0.15 * z, 0.75, 1.1)
 
-    # needles: dark dotted body shaded by light, sparkles stay bright everywhere
-    q = np.clip((bright - B_LO) / (B_HI - B_LO), 0, 1)[:, None]
-    m = kind == NEEDLE; col[m] = NEEDLE_DARK + (NEEDLE_MID - NEEDLE_DARK) * q[m] ** 0.8
-    m = SPARK[vis]; col[m] = NEEDLE_LIGHT * (0.70 + 0.35 * q[m])
+    # needles: the glyph sets the tone (% * + bright, = - : . dark), lighting shifts it a little
+    q = np.clip((bright - B_LO) / (B_HI - B_LO), 0, 1)
+    m = kind == NEEDLE; lv = np.clip(LEVEL[vis][m] * (0.75 + 0.5 * q[m]), 0, 1)[:, None]
+    col[m] = NEEDLE_DARK + (NEEDLE_LIGHT - NEEDLE_DARK) * lv ** 1.3
     # ornaments: bright @ centre, dark % rim
     m = kind == ORNAMENT
-    ch[m] = np.where(ndl[m] > 0.45, "@", "%"); col[m] *= (0.35 + 0.8 * ndl[m])[:, None]
+    ch[m] = np.where(ndl[m] > 0.6, "@", np.where(ndl[m] > 0.3, "#", "%")); col[m] *= (0.4 + 0.75 * ndl[m])[:, None]
     # presents: face shading picks the glyph
     m = kind == PRESENT
     ch[m] = np.where(ndl[m] > 0.55, "#", np.where(ndl[m] > 0.2, "%", ":")); col[m] *= (0.45 + 0.7 * ndl[m])[:, None]
     # everything else lit normally; ground brighter on the far side (behind the tree)
     m = (kind == STATIC) & lit; col[m] *= bright[m][:, None]
-    m = kind == GROUND; col[m] *= (ao[m] * (0.35 + 0.65 * np.clip((z[m] + 0.3) / 2.0, 0, 1)))[:, None]
+    m = kind == GROUND; col[m] *= (ao[m] * (0.6 + 0.4 * np.clip((z[m] + 0.3) / 2.0, 0, 1)))[:, None]
     # lights blink
     vi = np.flatnonzero(vis); lmask = (vi >= li0) & (vi < li1)
     on = np.sin(t * 2.4 + light_phase[:lmask.sum()]) > -0.3
@@ -189,18 +192,19 @@ def frame(t, ang, W, H):
         g = min(1.0, (t - 13) / 1.5)
         tx, ty = int(W / 2), int(H * 0.50 - f * (YT + 0.04 - 0.06) / CAM)
         glow = 0.9 + 0.1 * math.sin(t * 5)
-        for j, row in enumerate(["##", "######", "######", "##"]):
+        for j, row in enumerate(["#", "###", "########", "######", "######"]):
             for i, chr_ in enumerate(row):
-                yy, xx = ty - 1 + j, tx - len(row) // 2 + i
+                yy, xx = ty - 2 + j, tx - len(row) // 2 + i
                 if 0 <= yy < H and 0 <= xx < W: grid[yy, xx] = chr_; rgb[yy, xx] = [1.0, 0.92, 0.45 * glow]; emis[yy, xx] = [1.0, 0.9, 0.4]
-        rays = [(0, -1, "|", 2, 8), (0, 1, "|", 3, 6), (1, -1, "\\", 2, 6), (-1, -1, "/", 2, 6), (1, 1, "/", 3, 4), (-1, 1, "\\", 3, 4),
-                (2, 0, "-", 4, 6), (-2, 0, "-", 4, 6)]
+        rays = [(0, -1, "|", 3, 11), (0, 1, "|", 3, 9), (1, -1, "/", 2, 7), (-1, -1, "\\", 2, 7), (1, 1, "\\", 3, 6), (-1, 1, "/", 3, 6),
+                (1, 0, "-", 6, 16), (-1, 0, "-", 6, 16)]
         for ddx, ddy, chr_, k0, ln in rays:
             for k in range(k0, k0 + int(ln * g)):
-                yy, xx = ty + k * ddy, tx + k * ddx + (ddx > 0) - (ddx < 0 and ddy == 0)
-                if 0 <= yy < H and 0 <= xx < W and (grid[yy, xx] == " " or ddx == 0):
+                if k % 3 == 2: continue                                   # dashed
+                yy, xx = ty + k * ddy, tx + k * ddx + (ddx > 0)
+                if 0 <= yy < H and 0 <= xx < W and (grid[yy, xx] == " " or ddx == 0 or ddy > 0):
                     frac = (k - k0) / ln
-                    grid[yy, xx] = chr_; rgb[yy, xx] = np.array([1.0, 0.88, 0.40]) * (1.0 - 0.7 * frac)
+                    grid[yy, xx] = chr_; rgb[yy, xx] = np.array([1.0, 0.88, 0.40]) * (0.9 - 0.55 * frac)
     rgb += bloom(emis)
     return grid, np.clip(rgb * 255, 0, 255).astype(int), int(lmask.sum())
 
