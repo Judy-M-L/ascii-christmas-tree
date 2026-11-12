@@ -9,7 +9,7 @@ TAU = math.tau
 rng = np.random.default_rng(7)
 Y0 = -1.0                         # ground level
 YB, YT = Y0 + 0.30, 1.10          # lowest whorl / tip
-def radius(h): return 0.80 * (1 - h) ** 0.95
+def radius(h): return 0.82 * (1 - h) ** 0.70          # fuller near the top, like the reference
 
 # point store: position, normal (0 = unlit), colour, ambient occlusion, birth time, glyph, kind
 NEEDLE, ORNAMENT, PRESENT, STATIC, GROUND = range(5)
@@ -60,13 +60,13 @@ g1 = sum(len(x) for x in P)
 
 # ---------------------------------------------------------------- ornaments: small shaded balls on branch tips
 PALETTE = [[1.0, 0.10, 0.08], [1.0, 0.10, 0.08], [1.0, 0.10, 0.08], [1.0, 0.75, 0.15], [1.0, 0.70, 0.80], [0.90, 0.95, 1.0]]
-for i, tp in enumerate(tips[:44]):
-    v = rng.normal(size=(12, 3)); v /= np.linalg.norm(v, axis=1, keepdims=True)
-    add(tp * [1.08, 1, 1.08] + [0, -0.04, 0] + v * [0.05, 0.028, 0.05], v, PALETTE[i % len(PALETTE)], 1.0, 6 + 0.1 * i, "@" * 12, ORNAMENT)
+for i, tp in enumerate(tips[:60]):
+    v = rng.normal(size=(20, 3)); v /= np.linalg.norm(v, axis=1, keepdims=True)
+    add(tp * [1.08, 1, 1.08] + [0, -0.05, 0] + v * [0.07, 0.04, 0.07], v, PALETTE[i % len(PALETTE)], 1.0, 6 + 0.08 * i, "@" * 20, ORNAMENT)
 
 # ---------------------------------------------------------------- lights: small warm dots that switch on one by one
 NL = 170
-lt = tips[50:50 + NL] * [1.05, 1, 1.05] + [0, -0.015, 0]
+lt = tips[60:60 + NL] * [1.05, 1, 1.05] + [0, -0.015, 0]
 light_phase = rng.random(NL) * TAU
 li0 = sum(len(x) for x in P)
 add(lt, 0, [1.0, 0.86, 0.38], 1.0, 9 + np.arange(NL) * (4.0 / NL), "o" * NL)
@@ -86,32 +86,31 @@ def box(cx, cz, w, hh, d, col, ribbon_col, rot, born, y=0.0):
     add(rp[~rib], rn[~rib], col, 1.0, born, "#" * int((~rib).sum()), PRESENT)
     add(rp[rib], rn[rib], ribbon_col, 1.0, born, "=" * int(rib.sum()))
 RED, GOLD, WHITE, PINK, GREEN, BLUE = [1.0, 0.10, 0.08], [1.0, 0.80, 0.22], [0.95, 0.95, 1.0], [1.0, 0.72, 0.82], [0.12, 0.60, 0.25], [0.25, 0.45, 0.95]
-box(-1.05, 0.55, .38, .30, .34, RED, GOLD, 0.3, 7.0)
-box(1.10, -0.30, .32, .26, .32, PINK, RED, -0.4, 7.4)
-box(0.45, 1.10, .34, .24, .34, GOLD, WHITE, 0.8, 7.8)
-box(-0.60, -1.10, .24, .36, .24, RED, WHITE, 0.1, 8.2)
-box(1.05, 0.85, .28, .20, .28, GREEN, GOLD, 0.5, 8.6)
-box(-1.20, -0.40, .40, .28, .36, WHITE, RED, -0.2, 9.0)
-box(-1.20, -0.40, .20, .14, .18, RED, GOLD, 0.4, 9.3, y=.28)   # stacked on top
-box(0.75, -1.05, .30, .22, .30, BLUE, WHITE, 0.6, 9.6)
-box(-0.35, 1.25, .24, .26, .24, GOLD, RED, -0.5, 9.9)
-box(1.35, 0.30, .26, .18, .24, RED, WHITE, 0.2, 10.2)
-box(-0.10, -1.35, .34, .18, .28, PINK, GOLD, 0.9, 10.5)
-box(1.25, 1.20, .22, .24, .22, GREEN, WHITE, -0.3, 10.8)
-
+box(-0.90, 0.45, .30, .24, .27, RED, GOLD, 0.3, 7.0)
+box(0.92, -0.25, .25, .20, .25, PINK, RED, -0.4, 7.4)
+box(0.40, 0.92, .27, .19, .27, GOLD, WHITE, 0.8, 7.8)
+box(-0.50, -0.92, .19, .28, .19, RED, WHITE, 0.1, 8.2)
+box(0.88, 0.70, .22, .16, .22, GREEN, GOLD, 0.5, 8.6)
+box(-1.00, -0.35, .32, .22, .28, WHITE, RED, -0.2, 9.0)
+box(-1.00, -0.35, .16, .11, .14, RED, GOLD, 0.4, 9.3, y=.22)   # stacked on top
+box(0.65, -0.88, .24, .18, .24, BLUE, WHITE, 0.6, 9.6)
+box(-0.30, 1.05, .19, .21, .19, GOLD, RED, -0.5, 9.9)
+box(1.12, 0.25, .21, .14, .19, RED, WHITE, 0.2, 10.2)
+box(-0.10, -1.12, .27, .14, .22, PINK, GOLD, 0.9, 10.5)
+box(1.05, 1.00, .18, .19, .18, GREEN, WHITE, -0.3, 10.8)
 # ---------------------------------------------------------------- snowy ground: rows of dots, brightest on the far side behind the tree
 gx, gz = np.meshgrid(np.arange(-2.8, 2.8, 0.024), np.arange(-2.8, 2.8, 0.085))
 gx, gz = gx.ravel(), gz.ravel(); r = np.hypot(gx, gz)
-keep = (r > 0.11) & (rng.random(len(gx)) < 0.85); gx, gz, r = gx[keep], gz[keep], r[keep]
+keep = (r > 0.11) & (rng.random(len(gx)) < 0.97); gx, gz, r = gx[keep], gz[keep], r[keep]
 gch = np.where(r < 0.9, rng.choice(list("+=+="), len(gx)), np.where(r < 1.6, rng.choice(list("=-:+"), len(gx)), rng.choice(list(".:-."), len(gx))))
-add(np.stack([gx, np.full(len(gx), Y0 - 0.02), gz], -1), 0, [0.70, 0.74, 0.84], np.clip(1.15 - 0.4 * r, 0.3, 1.0) * (0.75 + 0.25 * rng.random(len(gx))), 0,
+add(np.stack([gx, np.full(len(gx), Y0 - 0.02), gz], -1), 0, [0.78, 0.82, 0.90], np.clip(1.2 - 0.33 * r, 0.45, 1.0) * (0.8 + 0.2 * rng.random(len(gx))), 0,
     gch, GROUND)
 
 P = np.concatenate(P); N = np.concatenate(N); C = np.concatenate(C); AO = np.concatenate(AO)
 BORN = np.concatenate(BORN); CH = np.concatenate(CH); KIND = np.concatenate(KIND)
 LIGHT = np.array([-0.55, 0.45, -0.70]); LIGHT /= np.linalg.norm(LIGHT)
-NEEDLE_DARK, NEEDLE_LIGHT = np.array([0.07, 0.32, 0.12]), np.array([0.40, 0.86, 0.42])
-GLYPH_LEVEL = {"%": 1.0, "*": 0.8, "+": 0.68, "=": 0.52, "~": 0.5, "-": 0.42, ":": 0.36, ".": 0.30}   # glyph decides brightness
+NEEDLE_DARK, NEEDLE_LIGHT = np.array([0.12, 0.46, 0.18]), np.array([0.45, 0.90, 0.46])
+GLYPH_LEVEL = {"%": 1.0, "*": 0.85, "+": 0.75, "=": 0.6, "~": 0.58, "-": 0.5, ":": 0.45, ".": 0.4}   # glyph decides brightness
 LEVEL = np.array([GLYPH_LEVEL.get(c, 0.5) for c in CH])
 
 def lambert(nx, ny, nz):
@@ -231,7 +230,7 @@ def to_text(grid, rgb):
                 line.append(esc(r, g, b)); last = (r, g, b)
             line.append(chr_)
         out.append("".join(line))
-    return "\n".join(out) + "\x1b[0m"
+    return "\x1b[1m" + "\n".join(out) + "\x1b[0m"
 
 # ---------------------------------------------------------------- music (macOS afplay; --song wish|jingle|silent, --music FILE for your own, --mute)
 NOTE = {"C4": 261.63, "D4": 293.66, "E4": 329.63, "F4": 349.23, "G4": 392.00, "A4": 440.00, "B4": 493.88,
