@@ -177,17 +177,22 @@ def frame(t, ang, W, H):
         g = min(1.0, (t - 13) / 1.5)
         tx, ty = int(W / 2), int(H * 0.50 - f * (YT + 0.02 - 0.06) / CAM)
         glow = 0.85 + 0.15 * math.sin(t * 5)
-        for j, row in enumerate(["####", "######", "####"]):
+        core = ["#", "###", "#####", "###", "#"]                     # pointed diamond core
+        for j, row in enumerate(core):
             for i, chr_ in enumerate(row):
-                yy, xx = ty - 1 + j, tx - len(row) // 2 + i
-                if 0 <= yy < H and 0 <= xx < W: grid[yy, xx] = chr_; rgb[yy, xx] = [1.0, 0.90, 0.35 * glow]
-        rays = [(0, -1, "|", 9), (0, 1, "|", 4), (2, 0, "-", 7), (-2, 0, "-", 7),
-                (2, -1, "/", 5), (-2, -1, "\\", 5), (2, 1, "\\", 4), (-2, 1, "/", 4)]
-        for ddx, ddy, chr_, ln in rays:
-            for k in range(2, 2 + int(ln * g)):
+                yy, xx = ty - 2 + j, tx - len(row) // 2 + i
+                if 0 <= yy < H and 0 <= xx < W: grid[yy, xx] = chr_; rgb[yy, xx] = [1.0, 0.92, 0.40 * glow]
+        # rays: thick near the core, thinning to a single dot at the tip
+        rays = [(0, -1, "|", 10, 3), (0, 1, "|", 5, 3), (2, 0, "-", 9, 2), (-2, 0, "-", 9, 2),
+                (2, -1, "/", 6, 2), (-2, -1, "\\", 6, 2), (2, 1, "\\", 5, 2), (-2, 1, "/", 5, 2)]
+        for ddx, ddy, chr_, ln, k0 in rays:
+            n_ = int(ln * g)
+            for k in range(k0, k0 + n_):
                 yy, xx = ty + k * ddy, tx + k * ddx + (1 if ddx > 0 else 0)
                 if 0 <= yy < H and 0 <= xx < W and grid[yy, xx] == " ":
-                    grid[yy, xx] = chr_; rgb[yy, xx] = np.array([1.0, 0.85, 0.35]) * (1.1 - k / (ln + 2)) * 0.8
+                    frac = (k - k0) / max(ln, 1)
+                    grid[yy, xx] = "." if frac > 0.75 else ("'" if frac > 0.5 and chr_ != "-" else chr_)
+                    rgb[yy, xx] = np.array([1.0, 0.88, 0.40]) * (1.0 - 0.75 * frac)
     return grid, np.clip(rgb * 255, 0, 255).astype(int), nlit
 
 TRUECOLOR = os.environ.get("TERM_PROGRAM") != "Apple_Terminal" or os.environ.get("COLORTERM") in ("truecolor", "24bit")
