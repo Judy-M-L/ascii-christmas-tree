@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """ASCII Christmas Tree - a rotating 3D scene rendered as coloured text.
-Run: python3 tree.py [--song silent|jingle | --music song.mp3 | --mute]   (Ctrl-C quits). Best in a tall window, 50+ rows.
+Run: python3 tree.py [--song wish|jingle|silent | --music song.mp3 | --mute]   (Ctrl-C quits). Best in a tall window, 50+ rows.
 The scene builds up over ~15 s: needles -> garland -> presents -> ornaments -> lights -> star."""
 import math, os, random, shutil, subprocess, sys, tempfile, threading, time, wave
 import numpy as np
@@ -164,10 +164,9 @@ def frame(t, ang, W, H):
             grid[by, bx] = "+" if b > 0.93 and tw > 0.8 else "."
             rgb[by, bx] = 0.35 + 0.65 * b * tw
     # snow
-    b = SNOW["b"]; ph = SNOW["ph"]
-    gust = 4.0 * math.sin(t * 0.35) + 2.0 * math.sin(t * 1.1 + 1)            # shared wind, changes direction
-    fy = (SNOW["y"] + t * (2.0 + 7.0 * b) + 1.5 * np.sin(t * 2.0 + ph)) % H  # tumble up and down a little
-    fx = (SNOW["x"] + (3 + 4 * b) * np.sin(t * (0.8 + b) + ph) + gust * (0.5 + b) * t * 0.4) % W
+    b = SNOW["b"]
+    fy = (SNOW["y"] + t * (2.0 + 7.0 * b)) % H       # straight down, near flakes faster
+    fx = SNOW["x"]
     fx, fy = fx.astype(int), fy.astype(int)
     near = b > 0.55
     far = ~near & (grid[fy, fx] == " ")
@@ -207,10 +206,15 @@ def to_text(grid, rgb):
         out.append("".join(line))
     return "\n".join(out) + "\x1b[0m"
 
-# ---------------------------------------------------------------- music (macOS afplay; --song silent|jingle, --music FILE for your own, --mute)
+# ---------------------------------------------------------------- music (macOS afplay; --song wish|jingle|silent, --music FILE for your own, --mute)
 NOTE = {"C4": 261.63, "D4": 293.66, "E4": 329.63, "F4": 349.23, "G4": 392.00, "A4": 440.00, "B4": 493.88,
         "C5": 523.25, "D5": 587.33, "E5": 659.25, "F5": 698.46}
 SONGS = {
+    "wish": (0.40, [  # We Wish You a Merry Christmas, 3/4, loops on the pickup note
+        ("G4", 1), ("C5", 1), ("C5", .5), ("D5", .5), ("C5", .5), ("B4", .5), ("A4", 1), ("A4", 1), ("A4", 1),
+        ("D5", 1), ("D5", .5), ("E5", .5), ("D5", .5), ("C5", .5), ("B4", 1), ("G4", 1), ("G4", 1),
+        ("E5", 1), ("E5", .5), ("F5", .5), ("E5", .5), ("D5", .5), ("C5", 1), ("A4", 1), ("G4", .5), ("G4", .5),
+        ("A4", 1), ("D5", 1), ("B4", 1), ("C5", 2)]),
     "silent": (0.55, [  # Silent Night, 3/4
         ("G4", 1.5), ("A4", .5), ("G4", 1), ("E4", 3), ("G4", 1.5), ("A4", .5), ("G4", 1), ("E4", 3),
         ("D5", 2), ("D5", 1), ("B4", 3), ("C5", 2), ("C5", 1), ("G4", 3),
@@ -228,10 +232,10 @@ def song_wav(name):
     sr, (beat, tune), out = 22050, SONGS[name], []
     for n, d in tune:
         tt = np.arange(int(sr * beat * d)) / sr
-        env = np.minimum(tt * 40, 1) * np.exp(-tt * 1.4) * (tt < beat * d - 0.02)
+        env = np.minimum(tt * 60, 1) * np.exp(-tt * 2.2) * (tt < beat * d - 0.02)
         f = NOTE[n]
-        out.append(env * (0.30 * np.sin(TAU * f * tt) + 0.08 * np.sin(TAU * 2 * f * tt) + 0.10 * np.sin(TAU * f / 2 * tt)))
-    out.append(np.zeros(int(sr * 1.5)))
+        out.append(env * (0.26 * np.sin(TAU * f * tt) + 0.10 * np.sign(np.sin(TAU * f * tt)) + 0.08 * np.sin(TAU * 2 * f * tt) + 0.08 * np.sin(TAU * f / 2 * tt)))
+    out.append(np.zeros(int(sr * (1.5 if name == "silent" else 0.3))))
     a = (np.concatenate(out) * 32767).astype("<i2")
     path = os.path.join(tempfile.gettempdir(), f"tree_{name}.wav")
     with wave.open(path, "wb") as w:
@@ -251,7 +255,7 @@ def stop_music():
 
 def main():
     if "--mute" not in sys.argv:
-        song = sys.argv[sys.argv.index("--song") + 1] if "--song" in sys.argv else "silent"
+        song = sys.argv[sys.argv.index("--song") + 1] if "--song" in sys.argv else "wish"
         start_music(sys.argv[sys.argv.index("--music") + 1] if "--music" in sys.argv else song_wav(song))
     W, H = shutil.get_terminal_size((100, 50)); H -= 3
     STARS[:] = make_stars(W, H); make_snow(W, H)
@@ -275,6 +279,6 @@ if __name__ == "__main__":
         STARS[:] = make_stars(100, 50); make_snow(100, 50)
         g, c, nl = frame(20.0, 0.3, 100, 50)
         assert nl == NL and (g != " ").sum() > 2000 and "#" in g and (c[..., 0] > 200).any(), "render broke"
-        p = song_wav("silent"); assert os.path.getsize(p) > 100000; song_wav("jingle")
+        p = song_wav("wish"); assert os.path.getsize(p) > 100000; song_wav("jingle"); song_wav("silent")
         print("ok", (g != " ").sum(), "wav", p); sys.exit()
     main()
