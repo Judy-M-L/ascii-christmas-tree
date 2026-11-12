@@ -194,7 +194,7 @@ def frame(t, ang, W, H):
         for j, row in enumerate(["#", "###", "########", "######", "######"]):
             for i, chr_ in enumerate(row):
                 yy, xx = ty - 2 + j, tx - len(row) // 2 + i
-                if 0 <= yy < H and 0 <= xx < W: grid[yy, xx] = chr_; rgb[yy, xx] = [1.0, 0.92, 0.45 * glow]; emis[yy, xx] = [1.0, 0.9, 0.4]
+                if 0 <= yy < H and 0 <= xx < W: grid[yy, xx] = chr_; rgb[yy, xx] = [1.0, 0.86 * glow, 0.0]; emis[yy, xx] = [1.0, 0.8, 0.0]
         rays = [(0, -1, "|", 3, 11), (0, 1, "|", 3, 9), (1, -1, "/", 2, 7), (-1, -1, "\\", 2, 7), (1, 1, "\\", 3, 6), (-1, 1, "/", 3, 6),
                 (1, 0, "-", 6, 16), (-1, 0, "-", 6, 16)]
         for ddx, ddy, chr_, k0, ln in rays:
@@ -203,7 +203,7 @@ def frame(t, ang, W, H):
                 yy, xx = ty + k * ddy, tx + k * ddx + (ddx > 0)
                 if 0 <= yy < H and 0 <= xx < W and (grid[yy, xx] == " " or ddx == 0 or ddy > 0):
                     frac = (k - k0) / ln
-                    grid[yy, xx] = chr_; rgb[yy, xx] = np.array([1.0, 0.88, 0.40]) * (0.9 - 0.55 * frac)
+                    grid[yy, xx] = chr_; rgb[yy, xx] = np.array([1.0, 0.84, 0.0]) * (0.95 - 0.5 * frac)
     rgb += bloom(emis)
     return grid, np.clip(rgb * 255, 0, 255).astype(int), int(lmask.sum())
 
