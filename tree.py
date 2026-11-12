@@ -36,7 +36,8 @@ for y in np.linspace(YB, YT - 0.05, 26):
              + side * rng.normal(0, 0.012, n)[:, None] + rng.normal(0, 0.006, (n, 3)))
         nrm = d * 0.7 + np.array([0, 0.7, 0]) + rng.normal(0, 0.10, (n, 3))
         snow = (s > 0.5) & (rng.random(n) < 0.05 * s)
-        add(p[~snow], nrm[~snow], [0, 0, 0], 0.75 + 0.25 * s[~snow], 0, np.full((~snow).sum(), "."), NEEDLE)
+        gl = rng.choice(list(".:-=%*o"), (~snow).sum(), p=[.36, .16, .12, .08, .14, .10, .04])
+        add(p[~snow], nrm[~snow], [0, 0, 0], 0.75 + 0.25 * s[~snow], 0, gl, NEEDLE)
         add(p[snow], [0, 1, 0], [0.92, 0.95, 1.0], 1.0, 0, np.full(snow.sum(), "*"))
         tips.append(d * L * 0.95 + np.array([0, y - 0.1 * L, 0]))
 tips = np.array(tips); rng.shuffle(tips)
@@ -107,21 +108,19 @@ add(np.stack([gx, np.full(len(gx), Y0 - 0.02), gz], -1), 0, [0.70, 0.74, 0.82], 
 P = np.concatenate(P); N = np.concatenate(N); C = np.concatenate(C); AO = np.concatenate(AO)
 BORN = np.concatenate(BORN); CH = np.concatenate(CH); KIND = np.concatenate(KIND)
 LIGHT = np.array([-0.55, 0.45, -0.70]); LIGHT /= np.linalg.norm(LIGHT)
-NEEDLE_DARK, NEEDLE_LIGHT = np.array([0.07, 0.34, 0.13]), np.array([0.62, 0.95, 0.62])
-RAMP = np.array(list(".:-=%#*"))                 # needle glyph by brightness rank
-RAMP_Q = np.array([0.22, 0.48, 0.68, 0.84, 0.94, 0.985])  # share of needles at or below each glyph
-JIT = rng.integers(-1, 2, len(P))
+NEEDLE_DARK, NEEDLE_MID, NEEDLE_LIGHT = np.array([0.04, 0.22, 0.08]), np.array([0.20, 0.62, 0.28]), np.array([0.70, 0.98, 0.70])
+SPARK = (KIND == NEEDLE) & np.isin(CH, list("%*o"))      # the bright sparkles
 
 def lambert(nx, ny, nz):
     return np.clip(nx * LIGHT[0] + ny * LIGHT[1] + nz * LIGHT[2], 0, 1)
 
-# calibrate the glyph ramp once: brightness quantiles of the needles that face the camera
+# calibrate once: brightness range of the needles that face the camera (5th..95th percentile)
 def _calibrate():
     m = KIND == NEEDLE; p = P[m]; n = N[m]
     front = p[:, 2] < 0
-    b = (0.35 + 0.95 * lambert(n[:, 0], n[:, 1], n[:, 2]) * 1.0) * AO[m] * np.clip(0.95 - 0.15 * p[:, 2], 0.75, 1.1)
-    return np.quantile(b[front], RAMP_Q)
-EDGES = _calibrate()
+    b = (0.35 + 0.95 * lambert(n[:, 0], n[:, 1], n[:, 2])) * AO[m] * np.clip(0.95 - 0.15 * p[:, 2], 0.75, 1.1)
+    return np.quantile(b[front], [0.05, 0.95])
+B_LO, B_HI = _calibrate()
 
 STARS = []
 def make_stars(W, H):
@@ -140,19 +139,17 @@ def frame(t, ang, W, H):
     p = P[vis]; n = N[vis]; col = C[vis].copy(); ao = AO[vis]; ch = CH[vis].copy(); kind = KIND[vis]
     x = p[:, 0] * c - p[:, 2] * s; z = p[:, 0] * s + p[:, 2] * c; y = p[:, 1]
     nx = n[:, 0] * c - n[:, 2] * s; nz = n[:, 0] * s + n[:, 2] * c
-    CAM = 4.2; d = z + CAM; f = H * 0.40 * CAM
+    CAM = 4.2; d = z + CAM; f = min(H * 0.40 * CAM, W * 1.05)       # tall or narrow windows: keep the tree inside
     sx = (W / 2 + 2.0 * f * x / d).astype(int)
     sy = (H * 0.50 - f * (y - 0.06) / d).astype(int)
     ndl = lambert(nx, n[:, 1], nz)
     lit = np.any(n != 0, axis=1)
     bright = np.where(lit, 0.35 + 0.95 * ndl, 1.0) * ao * np.clip(0.95 - 0.15 * z, 0.75, 1.1)
 
-    # needles: glyph and colour from brightness rank -> sparse dark base with bright sparkles
-    m = kind == NEEDLE
-    rank = np.clip(np.searchsorted(EDGES, bright[m]) + JIT[vis][m], 0, len(RAMP) - 1)
-    ch[m] = RAMP[rank]
-    q = (rank / (len(RAMP) - 1))[:, None] ** 1.4
-    col[m] = NEEDLE_DARK + (NEEDLE_LIGHT - NEEDLE_DARK) * q
+    # needles: dark dotted body shaded by light, sparkles stay bright everywhere
+    q = np.clip((bright - B_LO) / (B_HI - B_LO), 0, 1)[:, None]
+    m = kind == NEEDLE; col[m] = NEEDLE_DARK + (NEEDLE_MID - NEEDLE_DARK) * q[m] ** 0.8
+    m = SPARK[vis]; col[m] = NEEDLE_LIGHT * (0.70 + 0.35 * q[m])
     # ornaments: bright @ centre, dark % rim
     m = kind == ORNAMENT
     ch[m] = np.where(ndl[m] > 0.45, "@", "%"); col[m] *= (0.35 + 0.8 * ndl[m])[:, None]
@@ -288,10 +285,11 @@ def main():
     sys.stdout.write("\x1b[?25l\x1b[2J"); t0 = time.time(); fps = 30; k = 0
     try:
         while True:
-            t = time.time() - t0; ang = (t * 0.45) % TAU
+            t = time.time() - t0; ang = (t * 0.15) % TAU
             grid, rgb, nlit = frame(t, ang, W, H)
             letters = int((grid != " ").sum())
-            status = (f"\x1b[38;5;245mrotation {math.degrees(ang):7.2f}°    lights {nlit:3d}    letters {letters:,}"
+            hint = "    tip: shrink the font (Cmd -) for more detail" if H < 48 else ""
+            status = (f"\x1b[38;5;245mrotation {math.degrees(ang):7.2f}°    lights {nlit:3d}    letters {letters:,}{hint}"
                       f"\n\x1b[38;5;240mtree.py{' ' * max(1, W - 24)}running · {fps} fps\x1b[0m")
             sys.stdout.write("\x1b[H" + to_text(grid, rgb) + "\n" + status); sys.stdout.flush()
             k += 1; time.sleep(max(0, t0 + k / fps - time.time()))
