@@ -11,112 +11,117 @@ Y0 = -1.0                         # ground level
 YB, YT = Y0 + 0.30, 1.10          # lowest whorl / tip
 def radius(h): return 0.80 * (1 - h) ** 0.95
 
-# point store: position, normal (0 = unlit flat), colour (rgb 0..1), ambient occlusion, birth time, char
-P, N, C, AO, BORN, CH = [], [], [], [], [], []
-def add(p, n, c, ao, born, ch):
+# point store: position, normal (0 = unlit), colour, ambient occlusion, birth time, glyph, kind
+NEEDLE, ORNAMENT, PRESENT, STATIC, GROUND = range(5)
+P, N, C, AO, BORN, CH, KIND = [], [], [], [], [], [], []
+def add(p, n, c, ao, born, ch, kind=STATIC):
     p = np.asarray(p, float); k = len(p)
     P.append(p); N.append(np.broadcast_to(np.asarray(n, float), (k, 3)).copy())
     C.append(np.broadcast_to(np.asarray(c, float), (k, 3)).copy()); AO.append(np.broadcast_to(ao, k).astype(float))
     BORN.append(np.broadcast_to(born, k).astype(float)); CH.append(np.array(list(ch)) if isinstance(ch, str) else np.asarray(ch))
+    KIND.append(np.full(k, kind))
 
-# ---------------------------------------------------------------- needles: whorls of drooping branches
+# ---------------------------------------------------------------- needles: whorls of branches, tips poking past the cone
 tips = []
-for y in np.linspace(YB, YT - 0.05, 40):
+for y in np.linspace(YB, YT - 0.05, 26):
     h = (y - YB) / (YT - YB); R = radius(h)
-    k = max(7, int(R * 52)); a0 = rng.random() * TAU
+    k = max(6, int(R * 44)); a0 = rng.random() * TAU
     for a in np.linspace(0, TAU, k, endpoint=False) + a0:
-        L = R * (0.85 + 0.3 * rng.random()); n = max(10, int(L * 240))
-        s = 1 - rng.random(n) ** 1.6                       # dense at the tip
-        d = np.array([math.cos(a), 0, math.sin(a)])
-        side = np.array([-d[2], 0, d[0]])
+        L = R * (0.72 + 0.55 * rng.random())                    # uneven lengths -> jagged silhouette
+        n = max(8, int(L * 200))
+        s = rng.random(n) ** 0.85
+        d = np.array([math.cos(a), 0, math.sin(a)]); side = np.array([-d[2], 0, d[0]])
         p = (d * (L * s)[:, None] + np.array([0, y, 0])
-             - np.array([0, 1, 0]) * (0.07 * L * s * s)[:, None]        # droop
-             + side * rng.normal(0, 0.016, n)[:, None] + rng.normal(0, 0.007, (n, 3)))
-        nrm = d * 0.75 + np.array([0, 0.65, 0]) + rng.normal(0, 0.08, (n, 3))
-        tone = np.clip(0.3 + 0.7 * s + rng.normal(0, 0.07, n), 0, 1)[:, None]        # inner darker -> tip bright, smooth
-        col = np.array([0.10, 0.40, 0.17]) + np.array([0.22, 0.45, 0.25]) * tone
-        ch = rng.choice(list(":.-=%o#x"), n, p=[.26, .16, .14, .14, .12, .08, .06, .04])
-        snow = (s > 0.45) & (rng.random(n) < 0.06 * s)
-        add(p[~snow], nrm[~snow], col[~snow], 0.8 + 0.2 * s[~snow], 0, ch[~snow])
+             - np.array([0, 1, 0]) * (0.11 * L * s * s)[:, None]           # droop
+             + side * rng.normal(0, 0.012, n)[:, None] + rng.normal(0, 0.006, (n, 3)))
+        nrm = d * 0.7 + np.array([0, 0.7, 0]) + rng.normal(0, 0.10, (n, 3))
+        snow = (s > 0.5) & (rng.random(n) < 0.05 * s)
+        add(p[~snow], nrm[~snow], [0, 0, 0], 0.75 + 0.25 * s[~snow], 0, np.full((~snow).sum(), "."), NEEDLE)
         add(p[snow], [0, 1, 0], [0.92, 0.95, 1.0], 1.0, 0, np.full(snow.sum(), "*"))
-        tips.append(d * L * 0.93 + np.array([0, y - 0.1 * L, 0]))
+        tips.append(d * L * 0.95 + np.array([0, y - 0.1 * L, 0]))
 tips = np.array(tips); rng.shuffle(tips)
-needle_end = sum(len(x) for x in P)
 
-# ---------------------------------------------------------------- trunk with bark
+# ---------------------------------------------------------------- trunk
 hh, a = np.meshgrid(np.linspace(Y0 - 0.02, YB + 0.15, 40), np.linspace(0, TAU, 40))
 hh, a = hh.ravel(), a.ravel()
-p = np.stack([0.085 * np.cos(a), hh, 0.085 * np.sin(a)], -1)
-nn = np.stack([np.cos(a), 0 * a, np.sin(a)], -1)
-bark = 0.75 + 0.25 * np.sin(hh * 90 + a * 3)
-add(p, nn, np.array([0.42, 0.26, 0.14])[None] * bark[:, None], 1.0, 0, rng.choice(list("|#%"), len(p)))
+add(np.stack([0.085 * np.cos(a), hh, 0.085 * np.sin(a)], -1), np.stack([np.cos(a), 0 * a, np.sin(a)], -1),
+    np.array([0.42, 0.26, 0.14])[None] * (0.75 + 0.25 * np.sin(hh * 90 + a * 3))[:, None], 1.0, 0, rng.choice(list("|#%"), len(hh)))
 
-# ---------------------------------------------------------------- tinsel garland: drooping gold spiral in swags
+# ---------------------------------------------------------------- tinsel garland: drooping gold spiral in swags (glows)
 n = 2600; u = np.linspace(0, 1, n); turns = 3.6
 hg = 0.03 + 0.90 * u; ag = TAU * turns * u + 0.9
 swag = 0.06 * np.abs(np.sin(ag * 2.5)); rg = radius(hg) * 1.03
 p = np.stack([rg * np.cos(ag), YB + (YT - YB) * hg - swag, rg * np.sin(ag)], -1) + rng.normal(0, 0.008, (n, 3))
+g0 = sum(len(x) for x in P)
 add(p, 0, [1.0, 0.80, 0.30], 0.75 + 0.25 * rng.random(n), 3 + 3.5 * u, rng.choice(list("~=-o"), n, p=[.35, .3, .25, .1]))
+g1 = sum(len(x) for x in P)
 
-# ---------------------------------------------------------------- ornaments: little shaded spheres hung from branch tips
-def sphere(c, r, col, born, chars="@#%O", k=16):
-    v = rng.normal(size=(k, 3)); v /= np.linalg.norm(v, axis=1, keepdims=True)
-    add(c + v * r, v, col, 1.0, born, rng.choice(list(chars), k))
-PALETTE = [[1.0, 0.10, 0.08], [1.0, 0.10, 0.08], [1.0, 0.75, 0.15], [1.0, 0.70, 0.80], [0.90, 0.95, 1.0]]
-for i, tp in enumerate(tips[:40]):
-    sphere(tp * [1.12, 1, 1.12] + [0, -0.05, 0], 0.065, PALETTE[i % len(PALETTE)], 6 + 0.1 * i, chars="@@@O", k=44)
+# ---------------------------------------------------------------- ornaments: small shaded balls on branch tips
+PALETTE = [[1.0, 0.10, 0.08], [1.0, 0.10, 0.08], [1.0, 0.10, 0.08], [1.0, 0.75, 0.15], [1.0, 0.70, 0.80], [0.90, 0.95, 1.0]]
+for i, tp in enumerate(tips[:44]):
+    v = rng.normal(size=(14, 3)); v /= np.linalg.norm(v, axis=1, keepdims=True); v[:, 1] *= 0.6
+    add(tp * [1.08, 1, 1.08] + [0, -0.045, 0] + v * 0.04, v, PALETTE[i % len(PALETTE)], 1.0, 6 + 0.1 * i, "@" * 14, ORNAMENT)
 
-# ---------------------------------------------------------------- lights: warm dots on branch tips, counted in as they switch on
+# ---------------------------------------------------------------- lights: small warm dots that switch on one by one
 NL = 170
-lt = tips[40:40 + NL] * [1.05, 1, 1.05] + [0, -0.015, 0]
+lt = tips[50:50 + NL] * [1.05, 1, 1.05] + [0, -0.015, 0]
 light_phase = rng.random(NL) * TAU
-light_born = 9 + np.arange(NL) * (4.0 / NL)
 li0 = sum(len(x) for x in P)
-add(lt, 0, [1.0, 0.86, 0.38], 1.0, light_born, rng.choice(list("o@"), NL))
+add(lt, 0, [1.0, 0.86, 0.38], 1.0, 9 + np.arange(NL) * (4.0 / NL), "o" * NL)
 li1 = sum(len(x) for x in P)
 
-# ---------------------------------------------------------------- presents: boxes with a ribbon, surface only
+# ---------------------------------------------------------------- presents: boxes with a ribbon, faces shaded
 def box(cx, cz, w, hh, d, col, ribbon_col, rot, born, y=0.0):
     n = int(7000 * (w * hh + hh * d + w * d) / 0.3)
     p = rng.random((n, 3)) * [w, hh, d] - [w / 2, 0, d / 2]
-    ext = np.array([w / 2, hh, d / 2])
-    face = np.argmax(np.abs(p) / ext, axis=1)                                      # snap to nearest face
-    sgn = np.where(face == 1, 1.0, np.sign(p[np.arange(n), face]))
-    p[np.arange(n), face] = sgn * ext[face]
+    ext = np.array([w / 2, hh, d / 2]); face = np.argmax(np.abs(p) / ext, axis=1)
+    sgn = np.where(face == 1, 1.0, np.sign(p[np.arange(n), face])); p[np.arange(n), face] = sgn * ext[face]
     nrm = np.zeros((n, 3)); nrm[np.arange(n), face] = sgn
     rib = (np.abs(p[:, 0]) < w * .09) | (np.abs(p[:, 2]) < d * .09)
     cs, sn = math.cos(rot), math.sin(rot)
     rp = np.stack([p[:, 0] * cs - p[:, 2] * sn, p[:, 1], p[:, 0] * sn + p[:, 2] * cs], -1) + [cx, Y0 + y, cz]
     rn = np.stack([nrm[:, 0] * cs - nrm[:, 2] * sn, nrm[:, 1], nrm[:, 0] * sn + nrm[:, 2] * cs], -1)
-    add(rp[~rib], rn[~rib], col, 1.0, born, rng.choice(list("#%@"), (~rib).sum()))
-    add(rp[rib], rn[rib], ribbon_col, 1.0, born, np.full(rib.sum(), "="))
-box(-1.05, 0.55, .38, .30, .34, [1.0, 0.10, 0.08], [1.0, 0.80, 0.22], 0.3, 7.0)
-box(1.10, -0.30, .32, .26, .32, [1.0, 0.72, 0.82], [1.0, 0.10, 0.08], -0.4, 7.4)
-box(0.45, 1.10, .34, .24, .34, [1.0, 0.80, 0.22], [0.95, 0.95, 1.0], 0.8, 7.8)
-box(-0.60, -1.10, .24, .36, .24, [1.0, 0.10, 0.08], [0.95, 0.95, 1.0], 0.1, 8.2)
-box(1.05, 0.85, .28, .20, .28, [0.12, 0.60, 0.25], [1.0, 0.80, 0.22], 0.5, 8.6)
-box(-1.20, -0.40, .40, .28, .36, [0.95, 0.95, 1.0], [1.0, 0.10, 0.08], -0.2, 9.0)
-box(-1.20, -0.40, .20, .14, .18, [1.0, 0.10, 0.08], [1.0, 0.80, 0.22], 0.4, 9.3, y=.28)   # stacked on top
-box(0.75, -1.05, .30, .22, .30, [0.25, 0.45, 0.95], [0.95, 0.95, 1.0], 0.6, 9.6)
-box(-0.35, 1.25, .24, .26, .24, [1.0, 0.80, 0.22], [1.0, 0.10, 0.08], -0.5, 9.9)
-box(1.35, 0.30, .26, .18, .24, [1.0, 0.10, 0.08], [0.95, 0.95, 1.0], 0.2, 10.2)
-box(-0.10, -1.35, .34, .18, .28, [1.0, 0.72, 0.82], [1.0, 0.80, 0.22], 0.9, 10.5)
-box(1.25, 1.20, .22, .24, .22, [0.12, 0.60, 0.25], [0.95, 0.95, 1.0], -0.3, 10.8)
-# ---------------------------------------------------------------- snowy ground: dotted grid, bright near the tree, fading out
-gx, gz = np.meshgrid(np.arange(-2.8, 2.8, 0.022), np.arange(-2.8, 2.8, 0.085))
+    add(rp[~rib], rn[~rib], col, 1.0, born, "#" * int((~rib).sum()), PRESENT)
+    add(rp[rib], rn[rib], ribbon_col, 1.0, born, "=" * int(rib.sum()))
+RED, GOLD, WHITE, PINK, GREEN, BLUE = [1.0, 0.10, 0.08], [1.0, 0.80, 0.22], [0.95, 0.95, 1.0], [1.0, 0.72, 0.82], [0.12, 0.60, 0.25], [0.25, 0.45, 0.95]
+box(-1.05, 0.55, .38, .30, .34, RED, GOLD, 0.3, 7.0)
+box(1.10, -0.30, .32, .26, .32, PINK, RED, -0.4, 7.4)
+box(0.45, 1.10, .34, .24, .34, GOLD, WHITE, 0.8, 7.8)
+box(-0.60, -1.10, .24, .36, .24, RED, WHITE, 0.1, 8.2)
+box(1.05, 0.85, .28, .20, .28, GREEN, GOLD, 0.5, 8.6)
+box(-1.20, -0.40, .40, .28, .36, WHITE, RED, -0.2, 9.0)
+box(-1.20, -0.40, .20, .14, .18, RED, GOLD, 0.4, 9.3, y=.28)   # stacked on top
+box(0.75, -1.05, .30, .22, .30, BLUE, WHITE, 0.6, 9.6)
+box(-0.35, 1.25, .24, .26, .24, GOLD, RED, -0.5, 9.9)
+box(1.35, 0.30, .26, .18, .24, RED, WHITE, 0.2, 10.2)
+box(-0.10, -1.35, .34, .18, .28, PINK, GOLD, 0.9, 10.5)
+box(1.25, 1.20, .22, .24, .22, GREEN, WHITE, -0.3, 10.8)
+
+# ---------------------------------------------------------------- snowy ground: rows of dots, brightest on the far side behind the tree
+gx, gz = np.meshgrid(np.arange(-2.8, 2.8, 0.024), np.arange(-2.8, 2.8, 0.085))
 gx, gz = gx.ravel(), gz.ravel(); r = np.hypot(gx, gz)
-keep = (r > 0.11) & (rng.random(len(gx)) < 0.9); gx, gz, r = gx[keep], gz[keep], r[keep]
-fade = (0.40 + 0.65 * np.exp(-r * 0.9)) * (0.7 + 0.3 * rng.random(len(gx)))        # halo under the tree
-add(np.stack([gx, np.full(len(gx), Y0 - 0.02), gz], -1), 0, [0.72, 0.76, 0.84], fade, 0,
-    rng.choice(list(":.-'"), len(gx), p=[.45, .35, .12, .08]))
+keep = (r > 0.11) & (rng.random(len(gx)) < 0.85); gx, gz, r = gx[keep], gz[keep], r[keep]
+add(np.stack([gx, np.full(len(gx), Y0 - 0.02), gz], -1), 0, [0.70, 0.74, 0.82], 0.6 + 0.4 * rng.random(len(gx)), 0,
+    rng.choice(list(":.-'"), len(gx), p=[.4, .4, .12, .08]), GROUND)
 
 P = np.concatenate(P); N = np.concatenate(N); C = np.concatenate(C); AO = np.concatenate(AO)
-BORN = np.concatenate(BORN); CH = np.concatenate(CH)
-LIT = np.any(N != 0, axis=1)
-# needles pick their glyph from brightness every frame (ASCII luminance ramp) -> smooth shaded texture
-NEEDLE = (np.arange(len(P)) < needle_end) & (C[:, 0] < 0.8)
-RAMP = np.array(list(".:-=%#")); JIT = rng.integers(-1, 2, len(P))   # @ and o are reserved for ornaments and bulbs
-LIGHT = np.array([-0.45, 0.55, -0.70]); LIGHT /= np.linalg.norm(LIGHT)
+BORN = np.concatenate(BORN); CH = np.concatenate(CH); KIND = np.concatenate(KIND)
+LIGHT = np.array([-0.55, 0.45, -0.70]); LIGHT /= np.linalg.norm(LIGHT)
+NEEDLE_DARK, NEEDLE_LIGHT = np.array([0.07, 0.34, 0.13]), np.array([0.62, 0.95, 0.62])
+RAMP = np.array(list(".:-=%#*"))                 # needle glyph by brightness rank
+RAMP_Q = np.array([0.22, 0.48, 0.68, 0.84, 0.94, 0.985])  # share of needles at or below each glyph
+JIT = rng.integers(-1, 2, len(P))
+
+def lambert(nx, ny, nz):
+    return np.clip(nx * LIGHT[0] + ny * LIGHT[1] + nz * LIGHT[2], 0, 1)
+
+# calibrate the glyph ramp once: brightness quantiles of the needles that face the camera
+def _calibrate():
+    m = KIND == NEEDLE; p = P[m]; n = N[m]
+    front = p[:, 2] < 0
+    b = (0.35 + 0.95 * lambert(n[:, 0], n[:, 1], n[:, 2]) * 1.0) * AO[m] * np.clip(0.95 - 0.15 * p[:, 2], 0.75, 1.1)
+    return np.quantile(b[front], RAMP_Q)
+EDGES = _calibrate()
 
 STARS = []
 def make_stars(W, H):
@@ -132,25 +137,35 @@ def make_snow(W, H):
 def frame(t, ang, W, H):
     c, s = math.cos(ang), math.sin(ang)
     vis = BORN <= t
-    p = P[vis]; n = N[vis]; col = C[vis].copy(); ao = AO[vis]; ch = CH[vis]
+    p = P[vis]; n = N[vis]; col = C[vis].copy(); ao = AO[vis]; ch = CH[vis].copy(); kind = KIND[vis]
     x = p[:, 0] * c - p[:, 2] * s; z = p[:, 0] * s + p[:, 2] * c; y = p[:, 1]
     nx = n[:, 0] * c - n[:, 2] * s; nz = n[:, 0] * s + n[:, 2] * c
     CAM = 4.2; d = z + CAM; f = H * 0.40 * CAM
     sx = (W / 2 + 2.0 * f * x / d).astype(int)
     sy = (H * 0.50 - f * (y - 0.06) / d).astype(int)
-    # lighting: lambert + ambient occlusion + a little depth fade; unlit points keep their colour
-    ndl = np.clip(nx * LIGHT[0] + n[:, 1] * LIGHT[1] + nz * LIGHT[2], 0, 1)
+    ndl = lambert(nx, n[:, 1], nz)
     lit = np.any(n != 0, axis=1)
-    bright = np.where(lit, 0.80 + 0.45 * ndl, 1.0) * ao * np.clip(0.95 - 0.15 * z, 0.75, 1.1)
-    col *= bright[:, None]
-    nm = NEEDLE[vis]; lum = col[nm] @ [0.3, 0.59, 0.11]
-    ch = ch.copy(); ch[nm] = RAMP[np.clip(((lum - 0.33) * 11.5).astype(int) + JIT[vis][nm], 0, len(RAMP) - 1)]
+    bright = np.where(lit, 0.35 + 0.95 * ndl, 1.0) * ao * np.clip(0.95 - 0.15 * z, 0.75, 1.1)
+
+    # needles: glyph and colour from brightness rank -> sparse dark base with bright sparkles
+    m = kind == NEEDLE
+    rank = np.clip(np.searchsorted(EDGES, bright[m]) + JIT[vis][m], 0, len(RAMP) - 1)
+    ch[m] = RAMP[rank]
+    q = (rank / (len(RAMP) - 1))[:, None] ** 1.4
+    col[m] = NEEDLE_DARK + (NEEDLE_LIGHT - NEEDLE_DARK) * q
+    # ornaments: bright @ centre, dark % rim
+    m = kind == ORNAMENT
+    ch[m] = np.where(ndl[m] > 0.45, "@", "%"); col[m] *= (0.35 + 0.8 * ndl[m])[:, None]
+    # presents: face shading picks the glyph
+    m = kind == PRESENT
+    ch[m] = np.where(ndl[m] > 0.55, "#", np.where(ndl[m] > 0.2, "%", ":")); col[m] *= (0.45 + 0.7 * ndl[m])[:, None]
+    # everything else lit normally; ground brighter on the far side (behind the tree)
+    m = (kind == STATIC) & lit; col[m] *= bright[m][:, None]
+    m = kind == GROUND; col[m] *= (ao[m] * (0.35 + 0.65 * np.clip((z[m] + 0.3) / 2.0, 0, 1)))[:, None]
     # lights blink
-    vl = vis[li0:li1]; vi = np.flatnonzero(vis)
-    lmask = (vi >= li0) & (vi < li1)
-    on = np.sin(t * 2.4 + light_phase[:vl.sum()]) > -0.3
-    col[lmask] = np.where(on[:, None], [1.0, 0.88, 0.40], [0.40, 0.30, 0.10])
-    nlit = int(vl.sum())
+    vi = np.flatnonzero(vis); lmask = (vi >= li0) & (vi < li1)
+    on = np.sin(t * 2.4 + light_phase[:lmask.sum()]) > -0.3
+    col[lmask] = np.where(on[:, None], [1.0, 0.88, 0.40], [0.45, 0.33, 0.10])
 
     ok = (sx >= 0) & (sx < W) & (sy >= 0) & (sy < H)
     order = np.argsort(-d[ok], kind="stable")
@@ -159,6 +174,7 @@ def frame(t, ang, W, H):
     grid[gy, gx] = ch[ok][order]; rgb[gy, gx] = col[ok][order]
     emis = np.zeros((H, W, 3))                                   # emissive layer for bloom
     lm = lmask[ok][order]; emis[gy[lm], gx[lm]] = [1.0, 0.80, 0.30]
+    gm = ((vi >= g0) & (vi < g1))[ok][order]; emis[gy[gm], gx[gm]] += [0.4, 0.3, 0.1]
 
     # background stars (twinkle), only on empty cells
     for i, (bx, by, b) in enumerate(STARS):
@@ -166,38 +182,30 @@ def frame(t, ang, W, H):
             tw = 0.5 + 0.5 * math.sin(t * (1.5 + b * 2) + i)
             grid[by, bx] = "+" if b > 0.93 and tw > 0.8 else "."
             rgb[by, bx] = 0.35 + 0.65 * b * tw
-    # snow
-    b = SNOW["b"]
-    fy = (SNOW["y"] + t * (2.0 + 7.0 * b)) % H       # straight down, near flakes faster
-    fx = SNOW["x"]
-    fx, fy = fx.astype(int), fy.astype(int)
-    near = b > 0.55
-    far = ~near & (grid[fy, fx] == " ")
+    # snow, straight down; near flakes faster
+    b = SNOW["b"]; fy = ((SNOW["y"] + t * (2.0 + 7.0 * b)) % H).astype(int); fx = SNOW["x"].astype(int)
+    near = b > 0.55; far = ~near & (grid[fy, fx] == " ")
     grid[fy[far], fx[far]] = "."; rgb[fy[far], fx[far]] = (0.35 + 0.5 * b[far])[:, None]
     grid[fy[near], fx[near]] = np.where(b[near] > 0.8, "*", "."); rgb[fy[near], fx[near]] = 0.75 + 0.25 * b[near][:, None]
-    # the star: a gold block with rays that grow in
+    # the star: a dense gold block with eight thin rays that grow in
     if t >= 13:
         g = min(1.0, (t - 13) / 1.5)
-        tx, ty = int(W / 2), int(H * 0.50 - f * (YT + 0.02 - 0.06) / CAM)
-        glow = 0.85 + 0.15 * math.sin(t * 5)
-        core = ["#", "###", "#####", "###", "#"]                     # pointed diamond core
-        for j, row in enumerate(core):
+        tx, ty = int(W / 2), int(H * 0.50 - f * (YT + 0.04 - 0.06) / CAM)
+        glow = 0.9 + 0.1 * math.sin(t * 5)
+        for j, row in enumerate(["##", "######", "######", "##"]):
             for i, chr_ in enumerate(row):
-                yy, xx = ty - 2 + j, tx - len(row) // 2 + i
-                if 0 <= yy < H and 0 <= xx < W: grid[yy, xx] = chr_; rgb[yy, xx] = [1.0, 0.92, 0.40 * glow]; emis[yy, xx] = [1.0, 0.9, 0.4]
-        # rays: thick near the core, thinning to a single dot at the tip
-        rays = [(0, -1, "|", 10, 3), (0, 1, "|", 5, 3), (2, 0, "-", 9, 2), (-2, 0, "-", 9, 2),
-                (2, -1, "/", 6, 2), (-2, -1, "\\", 6, 2), (2, 1, "\\", 5, 2), (-2, 1, "/", 5, 2)]
-        for ddx, ddy, chr_, ln, k0 in rays:
-            n_ = int(ln * g)
-            for k in range(k0, k0 + n_):
-                yy, xx = ty + k * ddy, tx + k * ddx + (1 if ddx > 0 else 0)
-                if 0 <= yy < H and 0 <= xx < W and grid[yy, xx] == " ":
-                    frac = (k - k0) / max(ln, 1)
-                    grid[yy, xx] = "." if frac > 0.75 else ("'" if frac > 0.5 and chr_ != "-" else chr_)
-                    rgb[yy, xx] = np.array([1.0, 0.88, 0.40]) * (1.0 - 0.75 * frac)
+                yy, xx = ty - 1 + j, tx - len(row) // 2 + i
+                if 0 <= yy < H and 0 <= xx < W: grid[yy, xx] = chr_; rgb[yy, xx] = [1.0, 0.92, 0.45 * glow]; emis[yy, xx] = [1.0, 0.9, 0.4]
+        rays = [(0, -1, "|", 2, 8), (0, 1, "|", 3, 6), (1, -1, "\\", 2, 6), (-1, -1, "/", 2, 6), (1, 1, "/", 3, 4), (-1, 1, "\\", 3, 4),
+                (2, 0, "-", 4, 6), (-2, 0, "-", 4, 6)]
+        for ddx, ddy, chr_, k0, ln in rays:
+            for k in range(k0, k0 + int(ln * g)):
+                yy, xx = ty + k * ddy, tx + k * ddx + (ddx > 0) - (ddx < 0 and ddy == 0)
+                if 0 <= yy < H and 0 <= xx < W and (grid[yy, xx] == " " or ddx == 0):
+                    frac = (k - k0) / ln
+                    grid[yy, xx] = chr_; rgb[yy, xx] = np.array([1.0, 0.88, 0.40]) * (1.0 - 0.7 * frac)
     rgb += bloom(emis)
-    return grid, np.clip(rgb * 255, 0, 255).astype(int), nlit
+    return grid, np.clip(rgb * 255, 0, 255).astype(int), int(lmask.sum())
 
 def bloom(e):
     """Cheap glow: spread the emissive layer over a 5x3 neighbourhood (cells are ~2x taller than wide)."""
@@ -222,7 +230,7 @@ def to_text(grid, rgb):
                 line.append(esc(r, g, b)); last = (r, g, b)
             line.append(chr_)
         out.append("".join(line))
-    return "\x1b[1m" + "\n".join(out) + "\x1b[0m"          # bold = thicker glyphs = denser tree
+    return "\n".join(out) + "\x1b[0m"
 
 # ---------------------------------------------------------------- music (macOS afplay; --song wish|jingle|silent, --music FILE for your own, --mute)
 NOTE = {"C4": 261.63, "D4": 293.66, "E4": 329.63, "F4": 349.23, "G4": 392.00, "A4": 440.00, "B4": 493.88,
