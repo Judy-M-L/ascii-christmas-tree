@@ -21,7 +21,8 @@ Snow falls the whole time.
 | flag | effect |
 |------|--------|
 | `--music song.mp3` | play your own song (macOS `afplay`) |
-| `--mute` | no music (default is a tiny chiptune Jingle Bells) |
+| `--song silent` / `--song jingle` | built-in synth carol (default: Silent Night) |
+| `--mute` | no music |
 | `--check` | render one frame and exit |
 
 ## How it works

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """ASCII Christmas Tree - a rotating 3D scene rendered as coloured text.
-Run: python3 tree.py [--music song.mp3 | --mute]   (Ctrl-C quits). Best in a tall window, 50+ rows.
+Run: python3 tree.py [--song silent|jingle | --music song.mp3 | --mute]   (Ctrl-C quits). Best in a tall window, 50+ rows.
 The scene builds up over ~15 s: needles -> garland -> presents -> ornaments -> lights -> star."""
 import math, os, random, shutil, subprocess, sys, tempfile, threading, time, wave
 import numpy as np
@@ -207,21 +207,33 @@ def to_text(grid, rgb):
         out.append("".join(line))
     return "\n".join(out) + "\x1b[0m"
 
-# ---------------------------------------------------------------- music (macOS afplay; --music FILE for your own song, --mute for none)
-NOTE = {"C": 261.63, "D": 293.66, "E": 329.63, "F": 349.23, "G": 392.00}
-JINGLE = [("E", 1), ("E", 1), ("E", 2), ("E", 1), ("E", 1), ("E", 2), ("E", 1), ("G", 1), ("C", 1.5), ("D", .5), ("E", 4),
-          ("F", 1), ("F", 1), ("F", 1.5), ("F", .5), ("F", 1), ("E", 1), ("E", 1), ("E", .5), ("E", .5),
-          ("E", 1), ("D", 1), ("D", 1), ("E", 1), ("D", 2), ("G", 2)]
-def jingle_wav():
-    """Jingle Bells chorus as a little chiptune, written to a temp .wav."""
-    sr, beat, out = 22050, 60 / 180, []
-    for n, d in JINGLE:
+# ---------------------------------------------------------------- music (macOS afplay; --song silent|jingle, --music FILE for your own, --mute)
+NOTE = {"C4": 261.63, "D4": 293.66, "E4": 329.63, "F4": 349.23, "G4": 392.00, "A4": 440.00, "B4": 493.88,
+        "C5": 523.25, "D5": 587.33, "E5": 659.25, "F5": 698.46}
+SONGS = {
+    "silent": (0.55, [  # Silent Night, 3/4
+        ("G4", 1.5), ("A4", .5), ("G4", 1), ("E4", 3), ("G4", 1.5), ("A4", .5), ("G4", 1), ("E4", 3),
+        ("D5", 2), ("D5", 1), ("B4", 3), ("C5", 2), ("C5", 1), ("G4", 3),
+        ("A4", 2), ("A4", 1), ("C5", 1.5), ("B4", .5), ("A4", 1), ("G4", 1.5), ("A4", .5), ("G4", 1), ("E4", 3),
+        ("A4", 2), ("A4", 1), ("C5", 1.5), ("B4", .5), ("A4", 1), ("G4", 1.5), ("A4", .5), ("G4", 1), ("E4", 3),
+        ("D5", 2), ("D5", 1), ("F5", 1.5), ("D5", .5), ("B4", 1), ("C5", 3), ("E5", 3),
+        ("C5", 1), ("G4", 1), ("E4", 1), ("G4", 1.5), ("F4", .5), ("D4", 1), ("C4", 6)]),
+    "jingle": (0.33, [  # Jingle Bells chorus
+        ("E4", 1), ("E4", 1), ("E4", 2), ("E4", 1), ("E4", 1), ("E4", 2), ("E4", 1), ("G4", 1), ("C4", 1.5), ("D4", .5), ("E4", 4),
+        ("F4", 1), ("F4", 1), ("F4", 1.5), ("F4", .5), ("F4", 1), ("E4", 1), ("E4", 1), ("E4", .5), ("E4", .5),
+        ("E4", 1), ("D4", 1), ("D4", 1), ("E4", 1), ("D4", 2), ("G4", 2)]),
+}
+def song_wav(name):
+    """A carol as a soft little synth tune, written to a temp .wav."""
+    sr, (beat, tune), out = 22050, SONGS[name], []
+    for n, d in tune:
         tt = np.arange(int(sr * beat * d)) / sr
-        env = np.exp(-tt * 3) * (tt < beat * d - 0.03)
-        out.append(env * (0.22 * np.sign(np.sin(TAU * NOTE[n] * tt)) + 0.12 * np.sin(TAU * NOTE[n] / 2 * tt)))
-    out.append(np.zeros(int(sr * 0.8)))
+        env = np.minimum(tt * 40, 1) * np.exp(-tt * 1.4) * (tt < beat * d - 0.02)
+        f = NOTE[n]
+        out.append(env * (0.30 * np.sin(TAU * f * tt) + 0.08 * np.sin(TAU * 2 * f * tt) + 0.10 * np.sin(TAU * f / 2 * tt)))
+    out.append(np.zeros(int(sr * 1.5)))
     a = (np.concatenate(out) * 32767).astype("<i2")
-    path = os.path.join(tempfile.gettempdir(), "tree_jingle.wav")
+    path = os.path.join(tempfile.gettempdir(), f"tree_{name}.wav")
     with wave.open(path, "wb") as w:
         w.setnchannels(1); w.setsampwidth(2); w.setframerate(sr); w.writeframes(a.tobytes())
     return path
@@ -239,7 +251,8 @@ def stop_music():
 
 def main():
     if "--mute" not in sys.argv:
-        start_music(sys.argv[sys.argv.index("--music") + 1] if "--music" in sys.argv else jingle_wav())
+        song = sys.argv[sys.argv.index("--song") + 1] if "--song" in sys.argv else "silent"
+        start_music(sys.argv[sys.argv.index("--music") + 1] if "--music" in sys.argv else song_wav(song))
     W, H = shutil.get_terminal_size((100, 50)); H -= 3
     STARS[:] = make_stars(W, H); make_snow(W, H)
     sys.stdout.write("\x1b[?25l\x1b[2J"); t0 = time.time(); fps = 30; k = 0
@@ -262,6 +275,6 @@ if __name__ == "__main__":
         STARS[:] = make_stars(100, 50); make_snow(100, 50)
         g, c, nl = frame(20.0, 0.3, 100, 50)
         assert nl == NL and (g != " ").sum() > 2000 and "#" in g and (c[..., 0] > 200).any(), "render broke"
-        p = jingle_wav(); assert os.path.getsize(p) > 100000
+        p = song_wav("silent"); assert os.path.getsize(p) > 100000; song_wav("jingle")
         print("ok", (g != " ").sum(), "wav", p); sys.exit()
     main()
