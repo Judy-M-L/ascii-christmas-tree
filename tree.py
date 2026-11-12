@@ -121,7 +121,7 @@ def make_stars(W, H):
 # falling snow (screen space): depth b -> near flakes are big, fast and pass in front of the tree
 SNOW = {}
 def make_snow(W, H):
-    k = W * H // 50
+    k = W * H // 12
     SNOW.update(x=rng.random(k) * W, y=rng.random(k) * H, b=rng.random(k) ** 2, ph=rng.random(k) * TAU)
 
 # ---------------------------------------------------------------- render
@@ -164,8 +164,10 @@ def frame(t, ang, W, H):
             grid[by, bx] = "+" if b > 0.93 and tw > 0.8 else "."
             rgb[by, bx] = 0.35 + 0.65 * b * tw
     # snow
-    b = SNOW["b"]; fy = (SNOW["y"] + t * (1.5 + 5.0 * b)) % H
-    fx = (SNOW["x"] + 2.5 * np.sin(t * (0.5 + b) + SNOW["ph"]) + t * 0.6) % W
+    b = SNOW["b"]; ph = SNOW["ph"]
+    gust = 4.0 * math.sin(t * 0.35) + 2.0 * math.sin(t * 1.1 + 1)            # shared wind, changes direction
+    fy = (SNOW["y"] + t * (2.0 + 7.0 * b) + 1.5 * np.sin(t * 2.0 + ph)) % H  # tumble up and down a little
+    fx = (SNOW["x"] + (3 + 4 * b) * np.sin(t * (0.8 + b) + ph) + gust * (0.5 + b) * t * 0.4) % W
     fx, fy = fx.astype(int), fy.astype(int)
     near = b > 0.55
     far = ~near & (grid[fy, fx] == " ")
