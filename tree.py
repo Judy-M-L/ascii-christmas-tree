@@ -59,7 +59,7 @@ add(p, 0, [1.0, 0.82, 0.22], 1.0, 3 + 3.5 * u, rng.choice(list("~=o*"), n, p=[.3
 g1 = sum(len(x) for x in P)
 
 # ---------------------------------------------------------------- ornaments: small shaded balls on branch tips
-PALETTE = [[1.0, 0.12, 0.10], [1.0, 0.12, 0.10], [1.0, 0.12, 0.10], [1.0, 0.78, 0.18], [1.0, 0.12, 0.10], [1.0, 0.78, 0.18]]
+PALETTE = [[1.0, 0.12, 0.10], [1.0, 0.12, 0.10], [1.0, 0.78, 0.18], [1.0, 0.12, 0.10], [1.0, 0.95, 0.15], [1.0, 0.12, 0.10], [1.0, 0.95, 0.15]]   # red, gold, yellow
 for i, tp in enumerate(tips[:60]):
     v = rng.normal(size=(40, 3)); v /= np.linalg.norm(v, axis=1, keepdims=True)
     add(tp * [1.10, 1, 1.10] + [0, -0.05, 0] + v * [0.065, 0.05, 0.065], v, PALETTE[i % len(PALETTE)], 1.0, 6 + 0.08 * i, "@" * 40, ORNAMENT)
