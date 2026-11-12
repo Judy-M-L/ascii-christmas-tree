@@ -52,17 +52,17 @@ add(np.stack([0.085 * np.cos(a), hh, 0.085 * np.sin(a)], -1), np.stack([np.cos(a
 # ---------------------------------------------------------------- tinsel garland: drooping gold spiral in swags (glows)
 n = 2600; u = np.linspace(0, 1, n); turns = 3.6
 hg = 0.03 + 0.90 * u; ag = TAU * turns * u + 0.9
-swag = 0.06 * np.abs(np.sin(ag * 2.5)); rg = radius(hg) * 1.03
+swag = 0.06 * np.abs(np.sin(ag * 2.5)); rg = radius(hg) * 1.12
 p = np.stack([rg * np.cos(ag), YB + (YT - YB) * hg - swag, rg * np.sin(ag)], -1) + rng.normal(0, 0.008, (n, 3))
 g0 = sum(len(x) for x in P)
-add(p, 0, [0.95, 0.72, 0.28], 0.65 + 0.3 * rng.random(n), 3 + 3.5 * u, rng.choice(list("~=-o"), n, p=[.35, .3, .25, .1]))
+add(p, 0, [1.0, 0.82, 0.22], 1.0, 3 + 3.5 * u, rng.choice(list("~=o*"), n, p=[.30, .35, .15, .20]))
 g1 = sum(len(x) for x in P)
 
 # ---------------------------------------------------------------- ornaments: small shaded balls on branch tips
-PALETTE = [[1.0, 0.10, 0.08], [1.0, 0.10, 0.08], [1.0, 0.10, 0.08], [1.0, 0.75, 0.15], [1.0, 0.70, 0.80], [0.90, 0.95, 1.0]]
+PALETTE = [[1.0, 0.12, 0.10], [1.0, 0.12, 0.10], [1.0, 0.12, 0.10], [1.0, 0.78, 0.18], [1.0, 0.12, 0.10], [1.0, 0.78, 0.18]]
 for i, tp in enumerate(tips[:60]):
-    v = rng.normal(size=(20, 3)); v /= np.linalg.norm(v, axis=1, keepdims=True)
-    add(tp * [1.08, 1, 1.08] + [0, -0.05, 0] + v * [0.07, 0.04, 0.07], v, PALETTE[i % len(PALETTE)], 1.0, 6 + 0.08 * i, "@" * 20, ORNAMENT)
+    v = rng.normal(size=(40, 3)); v /= np.linalg.norm(v, axis=1, keepdims=True)
+    add(tp * [1.10, 1, 1.10] + [0, -0.05, 0] + v * [0.065, 0.05, 0.065], v, PALETTE[i % len(PALETTE)], 1.0, 6 + 0.08 * i, "@" * 40, ORNAMENT)
 
 # ---------------------------------------------------------------- lights: small warm dots that switch on one by one
 NL = 170
@@ -108,8 +108,8 @@ add(np.stack([gx, np.full(len(gx), Y0 - 0.02), gz], -1), 0, [0.78, 0.82, 0.90], 
 
 P = np.concatenate(P); N = np.concatenate(N); C = np.concatenate(C); AO = np.concatenate(AO)
 BORN = np.concatenate(BORN); CH = np.concatenate(CH); KIND = np.concatenate(KIND)
-LIGHT = np.array([-0.55, 0.45, -0.70]); LIGHT /= np.linalg.norm(LIGHT)
-NEEDLE_DARK, NEEDLE_LIGHT = np.array([0.12, 0.46, 0.18]), np.array([0.45, 0.90, 0.46])
+LIGHT = np.array([-0.75, 0.35, -0.55]); LIGHT /= np.linalg.norm(LIGHT)
+NEEDLE_DARK, NEEDLE_LIGHT = np.array([0.07, 0.30, 0.11]), np.array([0.50, 0.95, 0.50])
 GLYPH_LEVEL = {"%": 1.0, "*": 0.85, "+": 0.75, "=": 0.6, "~": 0.58, "-": 0.5, ":": 0.45, ".": 0.4}   # glyph decides brightness
 LEVEL = np.array([GLYPH_LEVEL.get(c, 0.5) for c in CH])
 
@@ -150,11 +150,11 @@ def frame(t, ang, W, H):
 
     # needles: the glyph sets the tone (% * + bright, = - : . dark), lighting shifts it a little
     q = np.clip((bright - B_LO) / (B_HI - B_LO), 0, 1)
-    m = kind == NEEDLE; lv = np.clip(LEVEL[vis][m] * (0.75 + 0.5 * q[m]), 0, 1)[:, None]
-    col[m] = NEEDLE_DARK + (NEEDLE_LIGHT - NEEDLE_DARK) * lv ** 1.3
+    m = kind == NEEDLE; lv = np.clip(LEVEL[vis][m] * (0.55 + 0.7 * q[m]), 0, 1)[:, None]
+    col[m] = NEEDLE_DARK + (NEEDLE_LIGHT - NEEDLE_DARK) * lv ** 2.2
     # ornaments: bright @ centre, dark % rim
     m = kind == ORNAMENT
-    ch[m] = np.where(ndl[m] > 0.6, "@", np.where(ndl[m] > 0.3, "#", "%")); col[m] *= (0.4 + 0.75 * ndl[m])[:, None]
+    ch[m] = np.where(ndl[m] > 0.25, "@", "%"); col[m] *= (0.7 + 0.4 * ndl[m])[:, None]
     # presents: face shading picks the glyph
     m = kind == PRESENT
     ch[m] = np.where(ndl[m] > 0.55, "#", np.where(ndl[m] > 0.2, "%", ":")); col[m] *= (0.45 + 0.7 * ndl[m])[:, None]
@@ -172,8 +172,8 @@ def frame(t, ang, W, H):
     grid = np.full((H, W), " ", dtype="<U1"); rgb = np.zeros((H, W, 3))
     grid[gy, gx] = ch[ok][order]; rgb[gy, gx] = col[ok][order]
     emis = np.zeros((H, W, 3))                                   # emissive layer for bloom
-    lm = lmask[ok][order]; emis[gy[lm], gx[lm]] = [1.0, 0.80, 0.30]
-    gm = ((vi >= g0) & (vi < g1))[ok][order]; emis[gy[gm], gx[gm]] += [0.4, 0.3, 0.1]
+    lm = lmask[ok][order]; emis[gy[lm], gx[lm]] = [0.5, 0.40, 0.15]
+    gm = ((vi >= g0) & (vi < g1))[ok][order]; emis[gy[gm], gx[gm]] += [0.12, 0.09, 0.02]
 
     # background stars (twinkle), only on empty cells
     for i, (bx, by, b) in enumerate(STARS):
