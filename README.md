@@ -25,6 +25,7 @@ Snow falls the whole time.
 | `--music song.mp3` | play your own song (macOS `afplay`) |
 | `--song wish` / `jingle` / `silent` | built-in synth carol (default: We Wish You a Merry Christmas) |
 | `--mute` | no music |
+| `--nocode` | hide the scrolling source pane under the tree |
 | `--check` | render one frame and exit |
 
 ## How it works

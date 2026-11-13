@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """ASCII Christmas Tree - a rotating 3D scene rendered as coloured text.
-Run: python3 tree.py [--song wish|jingle|silent | --music song.mp3 | --mute]   (Ctrl-C quits). Best in a tall window, 50+ rows.
+Run: python3 tree.py [--song wish|jingle|silent | --music song.mp3 | --mute | --nocode]   (Ctrl-C quits). Best in a tall window, 50+ rows.
 The scene builds up over ~15 s: needles -> garland -> presents -> ornaments -> lights -> star."""
-import math, os, random, shutil, subprocess, sys, tempfile, threading, time, wave
+import math, os, random, re, shutil, subprocess, sys, tempfile, threading, time, wave
 import numpy as np
 
 TAU = math.tau
@@ -25,10 +25,10 @@ def add(p, n, c, ao, born, ch, kind=STATIC):
 tips = []
 for y in np.linspace(YB, YT - 0.05, 24):
     h = (y - YB) / (YT - YB); R = radius(h)
-    k = max(6, int(R * 44)); a0 = rng.random() * TAU
+    k = max(7, int(R * 52)); a0 = rng.random() * TAU
     for a in np.linspace(0, TAU, k, endpoint=False) + a0:
         L = R * (0.78 + 0.45 * rng.random())                    # uneven lengths -> jagged silhouette
-        n = max(8, int(L * 230))
+        n = max(10, int(L * 300))
         s = 1 - rng.random(n) ** 1.4                             # dense at the tip
         d = np.array([math.cos(a), 0, math.sin(a)]); side = np.array([-d[2], 0, d[0]])
         p = (d * (L * s)[:, None] + np.array([0, y, 0])
@@ -281,11 +281,25 @@ def stop_music():
     p = player[0]; player[0] = False
     if p: p.terminate()
 
+# ---------------------------------------------------------------- code pane: this file's own source scrolls under the tree (--nocode hides it)
+SRC = open(__file__, encoding="utf-8").read().splitlines()
+TOK = re.compile(r'(#.*$)|("[^"]*"|\'[^\']*\')|(\b(?:def|for|in|if|else|elif|return|import|while|try|except|finally|not|and|or|as|with|lambda|None|True|False)\b)|(\b\d+\.?\d*\b)')
+CODE_COL = [(110, 110, 125), (150, 200, 120), (200, 130, 220), (230, 165, 80)]      # comment, string, keyword, number
+def code_pane(t, W, rows):
+    start = int(t * 2.5) % len(SRC)                                                 # ~2.5 lines per second
+    out = []
+    for i in range(rows):
+        n = (start + i) % len(SRC)
+        line = TOK.sub(lambda m: esc(*CODE_COL[m.lastindex - 1]) + m.group(0) + esc(190, 190, 205), SRC[n][:W - 6])
+        out.append(f"{esc(90, 90, 105)}{n + 1:4d}  {esc(190, 190, 205)}{line}\x1b[K")
+    return "\n".join(out)
+
 def main():
     if "--mute" not in sys.argv:
         song = sys.argv[sys.argv.index("--song") + 1] if "--song" in sys.argv else "wish"
         start_music(sys.argv[sys.argv.index("--music") + 1] if "--music" in sys.argv else song_wav(song))
     W, H = shutil.get_terminal_size((100, 50)); H -= 3
+    CR = max(8, H // 5) if "--nocode" not in sys.argv and H >= 36 else 0; H -= CR   # rows for the code pane
     STARS[:] = make_stars(W, H); make_snow(W, H)
     sys.stdout.write("\x1b[?25l\x1b[2J"); t0 = time.time(); fps = 30; k = 0
     try:
@@ -296,7 +310,7 @@ def main():
             hint = "    tip: shrink the font (Cmd -) for more detail" if H < 48 else ""
             status = (f"\x1b[38;5;245mrotation {math.degrees(ang):7.2f}°    lights {nlit:3d}    letters {letters:,}{hint}"
                       f"\n\x1b[38;5;240mtree.py{' ' * max(1, W - 24)}running · {fps} fps\x1b[0m")
-            sys.stdout.write("\x1b[H" + to_text(grid, rgb) + "\n" + status); sys.stdout.flush()
+            sys.stdout.write("\x1b[H" + to_text(grid, rgb) + "\n" + status + ("\n" + code_pane(t, W, CR) if CR else "")); sys.stdout.flush()
             k += 1; time.sleep(max(0, t0 + k / fps - time.time()))
     except KeyboardInterrupt:
         pass
