@@ -22,8 +22,7 @@ Snow falls the whole time.
 
 | flag | effect |
 |------|--------|
-| `--music song.mp3` | play your own song (macOS `afplay`) |
-| `--song wish` / `jingle` / `silent` | built-in synth carol (default: We Wish You a Merry Christmas) |
+| `--music song.mp3` | play your own song instead of the built-in We Wish You a Merry Christmas (macOS `afplay`) |
 | `--mute` | no music |
 | `--pitch 15` | camera angle from above in degrees (0 = straight on) |
 | `--nocode` | hide the scrolling source pane under the tree |

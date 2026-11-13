@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """ASCII Christmas Tree - a rotating 3D scene rendered as coloured text.
-Run: python3 tree.py [--song wish|jingle|silent | --music song.mp3 | --mute | --nocode | --pitch 15]   (Ctrl-C quits). Best in a tall window, 50+ rows.
+Run: python3 tree.py [--music song.mp3 | --mute | --nocode | --pitch 15]   (Ctrl-C quits). Best in a tall window, 50+ rows.
 The scene builds up over ~15 s: needles -> garland -> presents -> ornaments -> lights -> star."""
 import math, os, random, re, shutil, subprocess, sys, tempfile, threading, time, wave
 import numpy as np
@@ -252,38 +252,25 @@ def to_text(grid, rgb):
         out.append("".join(line))
     return "\x1b[1m" + "\n".join(out) + "\x1b[0m"
 
-# ---------------------------------------------------------------- music (macOS afplay; --song wish|jingle|silent, --music FILE for your own, --mute)
+# ---------------------------------------------------------------- music (macOS afplay; --music FILE for your own, --mute)
 NOTE = {"C4": 261.63, "D4": 293.66, "E4": 329.63, "F4": 349.23, "G4": 392.00, "A4": 440.00, "B4": 493.88,
         "C5": 523.25, "D5": 587.33, "E5": 659.25, "F5": 698.46}
-SONGS = {
-    "wish": (0.40, [  # We Wish You a Merry Christmas, 3/4, loops on the pickup note
-        ("G4", 1), ("C5", 1), ("C5", .5), ("D5", .5), ("C5", .5), ("B4", .5), ("A4", 1), ("A4", 1), ("A4", 1),
-        ("D5", 1), ("D5", .5), ("E5", .5), ("D5", .5), ("C5", .5), ("B4", 1), ("G4", 1), ("G4", 1),
-        ("E5", 1), ("E5", .5), ("F5", .5), ("E5", .5), ("D5", .5), ("C5", 1), ("A4", 1), ("G4", .5), ("G4", .5),
-        ("A4", 1), ("D5", 1), ("B4", 1), ("C5", 2)]),
-    "silent": (0.55, [  # Silent Night, 3/4
-        ("G4", 1.5), ("A4", .5), ("G4", 1), ("E4", 3), ("G4", 1.5), ("A4", .5), ("G4", 1), ("E4", 3),
-        ("D5", 2), ("D5", 1), ("B4", 3), ("C5", 2), ("C5", 1), ("G4", 3),
-        ("A4", 2), ("A4", 1), ("C5", 1.5), ("B4", .5), ("A4", 1), ("G4", 1.5), ("A4", .5), ("G4", 1), ("E4", 3),
-        ("A4", 2), ("A4", 1), ("C5", 1.5), ("B4", .5), ("A4", 1), ("G4", 1.5), ("A4", .5), ("G4", 1), ("E4", 3),
-        ("D5", 2), ("D5", 1), ("F5", 1.5), ("D5", .5), ("B4", 1), ("C5", 3), ("E5", 3),
-        ("C5", 1), ("G4", 1), ("E4", 1), ("G4", 1.5), ("F4", .5), ("D4", 1), ("C4", 6)]),
-    "jingle": (0.33, [  # Jingle Bells chorus
-        ("E4", 1), ("E4", 1), ("E4", 2), ("E4", 1), ("E4", 1), ("E4", 2), ("E4", 1), ("G4", 1), ("C4", 1.5), ("D4", .5), ("E4", 4),
-        ("F4", 1), ("F4", 1), ("F4", 1.5), ("F4", .5), ("F4", 1), ("E4", 1), ("E4", 1), ("E4", .5), ("E4", .5),
-        ("E4", 1), ("D4", 1), ("D4", 1), ("E4", 1), ("D4", 2), ("G4", 2)]),
-}
-def song_wav(name):
-    """A carol as a soft little synth tune, written to a temp .wav."""
-    sr, (beat, tune), out = 22050, SONGS[name], []
-    for n, d in tune:
-        tt = np.arange(int(sr * beat * d)) / sr
-        env = np.minimum(tt * 60, 1) * np.exp(-tt * 2.2) * (tt < beat * d - 0.02)
+BEAT, TUNE = 0.40, [  # We Wish You a Merry Christmas, 3/4, loops on the pickup note
+    ("G4", 1), ("C5", 1), ("C5", .5), ("D5", .5), ("C5", .5), ("B4", .5), ("A4", 1), ("A4", 1), ("A4", 1),
+    ("D5", 1), ("D5", .5), ("E5", .5), ("D5", .5), ("C5", .5), ("B4", 1), ("G4", 1), ("G4", 1),
+    ("E5", 1), ("E5", .5), ("F5", .5), ("E5", .5), ("D5", .5), ("C5", 1), ("A4", 1), ("G4", .5), ("G4", .5),
+    ("A4", 1), ("D5", 1), ("B4", 1), ("C5", 2)]
+def song_wav():
+    """The carol as a soft little synth tune, written to a temp .wav."""
+    sr, out = 22050, []
+    for n, d in TUNE:
+        tt = np.arange(int(sr * BEAT * d)) / sr
+        env = np.minimum(tt * 60, 1) * np.exp(-tt * 2.2) * (tt < BEAT * d - 0.02)
         f = NOTE[n]
         out.append(env * (0.26 * np.sin(TAU * f * tt) + 0.10 * np.sign(np.sin(TAU * f * tt)) + 0.08 * np.sin(TAU * 2 * f * tt) + 0.08 * np.sin(TAU * f / 2 * tt)))
-    out.append(np.zeros(int(sr * (1.5 if name == "silent" else 0.3))))
+    out.append(np.zeros(int(sr * 0.3)))
     a = (np.concatenate(out) * 32767).astype("<i2")
-    path = os.path.join(tempfile.gettempdir(), f"tree_{name}.wav")
+    path = os.path.join(tempfile.gettempdir(), "tree_wish.wav")
     with wave.open(path, "wb") as w:
         w.setnchannels(1); w.setsampwidth(2); w.setframerate(sr); w.writeframes(a.tobytes())
     return path
@@ -314,8 +301,7 @@ def code_pane(t, W, rows):
 
 def main():
     if "--mute" not in sys.argv:
-        song = sys.argv[sys.argv.index("--song") + 1] if "--song" in sys.argv else "wish"
-        start_music(sys.argv[sys.argv.index("--music") + 1] if "--music" in sys.argv else song_wav(song))
+        start_music(sys.argv[sys.argv.index("--music") + 1] if "--music" in sys.argv else song_wav())
     W, H = shutil.get_terminal_size((100, 50)); H -= 3
     CR = max(6, H // 8) if "--nocode" not in sys.argv and H >= 36 else 0; H -= CR   # rows for the code pane
     STARS[:] = make_stars(W, H); make_snow(W, H)
@@ -340,6 +326,6 @@ if __name__ == "__main__":
         STARS[:] = make_stars(100, 50); make_snow(100, 50)
         g, c, nl = frame(20.0, 0.3, 100, 50)
         assert nl == NL and (g != " ").sum() > 2000 and "#" in g and (c[..., 0] > 200).any(), "render broke"
-        p = song_wav("wish"); assert os.path.getsize(p) > 100000; song_wav("jingle"); song_wav("silent")
+        p = song_wav(); assert os.path.getsize(p) > 100000
         print("ok", (g != " ").sum(), "wav", p); sys.exit()
     main()
