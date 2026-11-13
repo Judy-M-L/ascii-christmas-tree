@@ -52,10 +52,11 @@ add(np.stack([0.085 * np.cos(a), hh, 0.085 * np.sin(a)], -1), np.stack([np.cos(a
 # ---------------------------------------------------------------- tinsel garland: drooping gold spiral in swags (glows)
 n = 2600; u = np.linspace(0, 1, n); turns = 3.6
 hg = 0.03 + 0.90 * u; ag = TAU * turns * u + 0.9
-swag = 0.06 * np.abs(np.sin(ag * 2.5)) + 0.02 * np.sign(np.sin(ag * 45)); rg = radius(hg) * 1.12   # swags + zigzag spikes
+zig = np.sign(np.sin(ag * 45)); swag = 0.06 * np.abs(np.sin(ag * 2.5)) - 0.022 * zig; rg = radius(hg) * 1.14   # swags + zigzag spikes
 p = np.stack([rg * np.cos(ag), YB + (YT - YB) * hg - swag, rg * np.sin(ag)], -1) + rng.normal(0, 0.008, (n, 3))
 g0 = sum(len(x) for x in P)
-add(p, 0, [1.0, 0.82, 0.22], 1.0, 3 + 3.5 * u, rng.choice(list("*^v+x"), n, p=[.25, .27, .27, .10, .11]))
+gch = np.where(rng.random(n) < 0.5, np.where(zig > 0, "^", "v"), rng.choice(list("*x+"), n, p=[.5, .3, .2]))   # ^ on the up-zig, v on the down-zig
+add(p, 0, [1.0, 0.88, 0.10], 1.0, 3 + 3.5 * u, gch)
 g1 = sum(len(x) for x in P)
 
 # ---------------------------------------------------------------- ornaments: small shaded balls on branch tips
@@ -164,16 +165,17 @@ def frame(t, ang, W, H):
     # lights blink
     vi = np.flatnonzero(vis); lmask = (vi >= li0) & (vi < li1)
     on = np.sin(t * 2.4 + light_phase[:lmask.sum()]) > -0.3
-    col[lmask] = np.where(on[:, None], [1.0, 0.88, 0.40], [0.45, 0.33, 0.10])
+    col[lmask] = np.where(on[:, None], [1.0, 0.93, 0.62], [0.45, 0.33, 0.10])
 
     ok = (sx >= 0) & (sx < W) & (sy >= 0) & (sy < H)
-    order = np.argsort(-d[ok], kind="stable")
+    gar = (vi >= g0) & (vi < g1)
+    order = np.argsort(-(d[ok] - 0.3 * gar[ok]), kind="stable")              # garland drawn over the needles around it
     gx, gy = sx[ok][order], sy[ok][order]
     grid = np.full((H, W), " ", dtype="<U1"); rgb = np.zeros((H, W, 3))
     grid[gy, gx] = ch[ok][order]; rgb[gy, gx] = col[ok][order]
     emis = np.zeros((H, W, 3))                                   # emissive layer for bloom
     lm = lmask[ok][order]; emis[gy[lm], gx[lm]] = [0.5, 0.40, 0.15]
-    gm = ((vi >= g0) & (vi < g1))[ok][order]; emis[gy[gm], gx[gm]] += [0.12, 0.09, 0.02]
+    gm = gar[ok][order]; emis[gy[gm], gx[gm]] += [0.12, 0.09, 0.02]
 
     # background stars (twinkle), only on empty cells
     for i, (bx, by, b) in enumerate(STARS):
