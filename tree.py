@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """ASCII Christmas Tree - a rotating 3D scene rendered as coloured text.
-Run: python3 tree.py [--song wish|jingle|silent | --music song.mp3 | --mute | --nocode | --pitch 30]   (Ctrl-C quits). Best in a tall window, 50+ rows.
+Run: python3 tree.py [--song wish|jingle|silent | --music song.mp3 | --mute | --nocode | --pitch 15]   (Ctrl-C quits). Best in a tall window, 50+ rows.
 The scene builds up over ~15 s: needles -> garland -> presents -> ornaments -> lights -> star."""
 import math, os, random, re, shutil, subprocess, sys, tempfile, threading, time, wave
 import numpy as np
@@ -126,7 +126,7 @@ def _calibrate():
 B_LO, B_HI = _calibrate()
 
 # camera looks down at the tree from a little above; fit the whole tree (not the ground) into the window over a full turn
-PITCH = math.radians(float(sys.argv[sys.argv.index("--pitch") + 1]) if "--pitch" in sys.argv else 30)   # --pitch 0 = straight on
+PITCH = math.radians(float(sys.argv[sys.argv.index("--pitch") + 1]) if "--pitch" in sys.argv else 15)   # --pitch 0 = straight on
 CAM = 4.2
 def tilt(y, z):
     cp, sp = math.cos(PITCH), math.sin(PITCH)
@@ -158,8 +158,8 @@ def frame(t, ang, W, H):
     x = p[:, 0] * c - p[:, 2] * s; z = p[:, 0] * s + p[:, 2] * c; y = p[:, 1]
     y, z = tilt(y, z)
     nx = n[:, 0] * c - n[:, 2] * s; nz = n[:, 0] * s + n[:, 2] * c
-    d = z + CAM; f = min(0.84 * H / (V_HI - V_LO), W * 1.05)       # tall or narrow windows: keep the tree inside
-    cy = 0.12 * H + f * V_HI                                          # screen row of the highest point
+    d = z + CAM; f = min(0.92 * H / (V_HI - V_LO), W * 1.05)       # tall or narrow windows: keep the tree inside
+    cy = 0.05 * H + f * V_HI                                          # screen row of the highest point
     sx = (W / 2 + 2.0 * f * x / d).astype(int)
     sy = (cy - f * y / d).astype(int)
     ndl = lambert(nx, n[:, 1], nz)
@@ -216,8 +216,9 @@ def frame(t, ang, W, H):
                 if 0 <= yy < H and 0 <= xx < W: grid[yy, xx] = chr_; rgb[yy, xx] = [1.0, 0.72 * glow, 0.0]; emis[yy, xx] = [0.6, 0.4, 0.0]
         rays = [(0, -1, "|", 3, 11), (0, 1, "|", 3, 9), (1, -1, "/", 2, 7), (-1, -1, "\\", 2, 7), (1, 1, "\\", 3, 6), (-1, 1, "/", 3, 6),
                 (1, 0, "-", 6, 16), (-1, 0, "-", 6, 16)]
+        rs = min(1.0, H / 70)
         for ddx, ddy, chr_, k0, ln in rays:
-            for k in range(k0, k0 + int(ln * g)):
+            for k in range(k0, k0 + int(ln * g * rs)):
                 if k % 3 == 2: continue                                   # dashed
                 yy, xx = ty + k * ddy, tx + k * ddx + (ddx > 0)
                 if 0 <= yy < H and 0 <= xx < W and (grid[yy, xx] == " " or ddx == 0 or ddy > 0):
@@ -316,7 +317,7 @@ def main():
         song = sys.argv[sys.argv.index("--song") + 1] if "--song" in sys.argv else "wish"
         start_music(sys.argv[sys.argv.index("--music") + 1] if "--music" in sys.argv else song_wav(song))
     W, H = shutil.get_terminal_size((100, 50)); H -= 3
-    CR = max(8, H // 5) if "--nocode" not in sys.argv and H >= 36 else 0; H -= CR   # rows for the code pane
+    CR = max(6, H // 8) if "--nocode" not in sys.argv and H >= 36 else 0; H -= CR   # rows for the code pane
     STARS[:] = make_stars(W, H); make_snow(W, H)
     sys.stdout.write("\x1b[?25l\x1b[2J"); t0 = time.time(); fps = 30; k = 0
     try:
