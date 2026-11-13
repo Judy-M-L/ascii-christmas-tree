@@ -3,7 +3,9 @@
 A rotating 3D Christmas tree rendered as coloured text in your terminal.
 One Python file, numpy only.
 
-![preview](preview.png)
+![demo](demo.gif)
+
+[Watch with sound (tree.mp4)](tree.mp4) · still frame: [preview.png](preview.png)
 
 ```bash
 pip install numpy
