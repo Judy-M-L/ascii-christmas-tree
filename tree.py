@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """ASCII Christmas Tree - a rotating 3D scene rendered as coloured text.
-Run: python3 tree.py [--song wish|jingle|silent | --music song.mp3 | --mute | --nocode]   (Ctrl-C quits). Best in a tall window, 50+ rows.
+Run: python3 tree.py [--song wish|jingle|silent | --music song.mp3 | --mute | --nocode | --pitch 30]   (Ctrl-C quits). Best in a tall window, 50+ rows.
 The scene builds up over ~15 s: needles -> garland -> presents -> ornaments -> lights -> star."""
 import math, os, random, re, shutil, subprocess, sys, tempfile, threading, time, wave
 import numpy as np
@@ -100,11 +100,11 @@ box(1.12, 0.25, .21, .14, .19, RED, WHITE, 0.2, 10.2)
 box(-0.10, -1.12, .27, .14, .22, PINK, GOLD, 0.9, 10.5)
 box(1.05, 1.00, .18, .19, .18, GREEN, WHITE, -0.3, 10.8)
 # ---------------------------------------------------------------- snowy ground: rows of dots, brightest on the far side behind the tree
-gx, gz = np.meshgrid(np.arange(-2.8, 2.8, 0.024), np.arange(-2.8, 2.8, 0.085))
+gx, gz = np.meshgrid(np.arange(-4.5, 4.5, 0.024), np.arange(-2.8, 2.8, 0.085))
 gx, gz = gx.ravel(), gz.ravel(); r = np.hypot(gx, gz)
 keep = (r > 0.11) & (rng.random(len(gx)) < 0.97); gx, gz, r = gx[keep], gz[keep], r[keep]
 gch = np.where(r < 0.9, rng.choice(list("+=+="), len(gx)), np.where(r < 1.6, rng.choice(list("=-:+"), len(gx)), rng.choice(list(".:-."), len(gx))))
-add(np.stack([gx, np.full(len(gx), Y0 - 0.02), gz], -1), 0, [0.78, 0.82, 0.90], np.clip(1.2 - 0.33 * r, 0.45, 1.0) * (0.8 + 0.2 * rng.random(len(gx))), 0,
+add(np.stack([gx, np.full(len(gx), Y0 - 0.02), gz], -1), 0, [0.66, 0.70, 0.78], np.clip(1.2 - 0.33 * r, 0.45, 1.0) * (0.8 + 0.2 * rng.random(len(gx))), 0,
     gch, GROUND)
 
 P = np.concatenate(P); N = np.concatenate(N); C = np.concatenate(C); AO = np.concatenate(AO)
@@ -125,6 +125,21 @@ def _calibrate():
     return np.quantile(b[front], [0.05, 0.95])
 B_LO, B_HI = _calibrate()
 
+# camera looks down at the tree from a little above; fit the whole tree (not the ground) into the window over a full turn
+PITCH = math.radians(float(sys.argv[sys.argv.index("--pitch") + 1]) if "--pitch" in sys.argv else 30)   # --pitch 0 = straight on
+CAM = 4.2
+def tilt(y, z):
+    cp, sp = math.cos(PITCH), math.sin(PITCH)
+    return y * cp + z * sp, z * cp - y * sp
+def _fit():
+    m = KIND != GROUND; p = P[m]; lo, hi = 9, -9
+    for ang in np.linspace(0, TAU, 12, endpoint=False):
+        c, s = math.cos(ang), math.sin(ang)
+        z = p[:, 0] * s + p[:, 2] * c; y2, z2 = tilt(p[:, 1], z); v = y2 / (z2 + CAM)
+        lo, hi = min(lo, v.min()), max(hi, v.max())
+    return lo, hi
+V_LO, V_HI = _fit()
+
 STARS = []
 def make_stars(W, H):
     return [(random.randrange(W), random.randrange(int(H * 0.72)), random.random()) for _ in range(W * H // 45)]
@@ -141,10 +156,12 @@ def frame(t, ang, W, H):
     vis = BORN <= t
     p = P[vis]; n = N[vis]; col = C[vis].copy(); ao = AO[vis]; ch = CH[vis].copy(); kind = KIND[vis]
     x = p[:, 0] * c - p[:, 2] * s; z = p[:, 0] * s + p[:, 2] * c; y = p[:, 1]
+    y, z = tilt(y, z)
     nx = n[:, 0] * c - n[:, 2] * s; nz = n[:, 0] * s + n[:, 2] * c
-    CAM = 4.2; d = z + CAM; f = min(H * 0.40 * CAM, W * 1.05)       # tall or narrow windows: keep the tree inside
+    d = z + CAM; f = min(0.84 * H / (V_HI - V_LO), W * 1.05)       # tall or narrow windows: keep the tree inside
+    cy = 0.12 * H + f * V_HI                                          # screen row of the highest point
     sx = (W / 2 + 2.0 * f * x / d).astype(int)
-    sy = (H * 0.50 - f * (y - 0.06) / d).astype(int)
+    sy = (cy - f * y / d).astype(int)
     ndl = lambert(nx, n[:, 1], nz)
     lit = np.any(n != 0, axis=1)
     bright = np.where(lit, 0.35 + 0.95 * ndl, 1.0) * ao * np.clip(0.95 - 0.15 * z, 0.75, 1.1)
@@ -191,7 +208,7 @@ def frame(t, ang, W, H):
     # the star: a dense gold block with eight thin rays that grow in
     if t >= 13:
         g = min(1.0, (t - 13) / 1.5)
-        tx, ty = int(W / 2), int(H * 0.50 - f * (YT + 0.04 - 0.06) / CAM)
+        sy2, sz2 = tilt(YT + 0.04, 0.0); tx, ty = int(W / 2), int(cy - f * sy2 / (sz2 + CAM))
         glow = 0.9 + 0.1 * math.sin(t * 5)
         for j, row in enumerate(["#", "###", "########", "######", "######"]):
             for i, chr_ in enumerate(row):
